@@ -3,6 +3,11 @@ from typing import Any
 from arq.jobs import Job
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from app.models.audit import AuditFailureReason
+from app.models.device_report import Device
+from app.schemas.report import DeviceReportData, Finding
+from app.services.pagespeed import PageSpeedError
+
 
 class RecordingQueue:
     def __init__(self) -> None:
@@ -16,3 +21,82 @@ class RecordingQueue:
 class UnavailableQueue:
     async def enqueue_job(self, function: str, *args: Any) -> Job | None:
         raise RedisConnectionError("Redis is unreachable")
+
+
+class InMemoryStore:
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+        self.expirations: dict[str, int] = {}
+
+    async def get(self, name: str) -> bytes | None:
+        value = self.values.get(name)
+        return value.encode() if value is not None else None
+
+    async def set(self, name: str, value: str, ex: int) -> object:
+        self.values[name] = value
+        self.expirations[name] = ex
+        return True
+
+
+class UnavailableStore:
+    async def get(self, name: str) -> bytes | None:
+        raise RedisConnectionError("Redis is unreachable")
+
+    async def set(self, name: str, value: str, ex: int) -> object:
+        raise RedisConnectionError("Redis is unreachable")
+
+
+def sample_report(device: Device, performance_score: int = 64) -> DeviceReportData:
+    return DeviceReportData(
+        device=device,
+        performance_score=performance_score,
+        first_contentful_paint_ms=1500.0,
+        largest_contentful_paint_ms=3100.0,
+        total_blocking_time_ms=210.0,
+        cumulative_layout_shift=0.05,
+        speed_index_ms=2800.0,
+        findings=[
+            Finding(
+                lighthouse_id="render-blocking-resources",
+                title="Eliminate render-blocking resources",
+                description="Resources are blocking the first paint of your page.",
+                score=0,
+                display_value="Est savings of 900 ms",
+                savings_ms=900,
+                savings_bytes=None,
+            )
+        ],
+    )
+
+
+class RecordingFetcher:
+    def __init__(self) -> None:
+        self.requests: list[tuple[str, Device]] = []
+
+    async def fetch_report(self, url: str, device: Device) -> DeviceReportData:
+        self.requests.append((url, device))
+        return sample_report(device)
+
+
+class FailingFetcher:
+    def __init__(self, reason: AuditFailureReason) -> None:
+        self.reason = reason
+
+    async def fetch_report(self, url: str, device: Device) -> DeviceReportData:
+        raise PageSpeedError(self.reason)
+
+
+class StubCollector:
+    def __init__(self, reports: list[DeviceReportData]) -> None:
+        self.reports = reports
+
+    async def collect(self, url: str) -> list[DeviceReportData]:
+        return self.reports
+
+
+class RaisingCollector:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    async def collect(self, url: str) -> list[DeviceReportData]:
+        raise self.error

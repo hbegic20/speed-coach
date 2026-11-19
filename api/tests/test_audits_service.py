@@ -2,9 +2,11 @@ import uuid
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.audit import Audit, AuditFailureReason, AuditStatus
+from app.models.device_report import Device
+from app.schemas.report import DeviceReportData
 from app.services.audits import (
     RUN_AUDIT_JOB,
     AuditQueueUnavailableError,
@@ -12,7 +14,15 @@ from app.services.audits import (
     get_audit,
     process_audit,
 )
-from tests.fakes import RecordingQueue, UnavailableQueue
+from app.services.pagespeed import PageSpeedError
+from tests.db import reload_audit
+from tests.fakes import (
+    RaisingCollector,
+    RecordingQueue,
+    StubCollector,
+    UnavailableQueue,
+    sample_report,
+)
 
 
 async def test_create_audit_stores_a_queued_audit_and_enqueues_it(
@@ -41,23 +51,65 @@ async def test_get_audit_returns_none_for_unknown_id(session: AsyncSession) -> N
     assert await get_audit(session, uuid.uuid4()) is None
 
 
-async def test_process_audit_completes_a_queued_audit(
-    session: AsyncSession, job_queue: RecordingQueue
+SessionFactory = async_sessionmaker[AsyncSession]
+
+
+async def queued_audit(session: AsyncSession) -> Audit:
+    audit = Audit(url="https://example.com/", status=AuditStatus.QUEUED)
+    session.add(audit)
+    await session.commit()
+    return audit
+
+
+async def test_process_audit_stores_reports_and_completes(
+    session: AsyncSession, session_factory: SessionFactory
 ) -> None:
-    audit = await create_audit(session, job_queue, "https://example.com/")
+    audit = await queued_audit(session)
+    reports = [sample_report(Device.MOBILE, 41), sample_report(Device.DESKTOP, 88)]
 
-    await process_audit(session, audit.id)
+    await process_audit(session, audit.id, StubCollector(reports))
 
-    assert audit.status is AuditStatus.COMPLETED
+    stored = await reload_audit(session_factory, audit.id)
+    assert stored.status is AuditStatus.COMPLETED
+    assert [DeviceReportData.model_validate(report) for report in stored.reports] == reports
+
+
+async def test_process_audit_records_pagespeed_failures(
+    session: AsyncSession, session_factory: SessionFactory
+) -> None:
+    audit = await queued_audit(session)
+    collector = RaisingCollector(PageSpeedError(AuditFailureReason.SITE_UNREACHABLE))
+
+    await process_audit(session, audit.id, collector)
+
+    stored = await reload_audit(session_factory, audit.id)
+    assert stored.status is AuditStatus.FAILED
+    assert stored.failure_reason is AuditFailureReason.SITE_UNREACHABLE
+    assert stored.reports == []
+
+
+async def test_process_audit_marks_unexpected_errors_and_reraises(
+    session: AsyncSession, session_factory: SessionFactory
+) -> None:
+    audit = await queued_audit(session)
+
+    with pytest.raises(RuntimeError):
+        await process_audit(session, audit.id, RaisingCollector(RuntimeError("boom")))
+
+    stored = await reload_audit(session_factory, audit.id)
+    assert stored.status is AuditStatus.FAILED
+    assert stored.failure_reason is AuditFailureReason.INTERNAL_ERROR
 
 
 async def test_process_audit_ignores_unknown_audit(session: AsyncSession) -> None:
-    await process_audit(session, uuid.uuid4())
+    await process_audit(session, uuid.uuid4(), StubCollector([]))
 
     assert (await session.scalars(select(Audit))).all() == []
 
 
-async def test_process_audit_leaves_finished_audits_untouched(session: AsyncSession) -> None:
+async def test_process_audit_leaves_finished_audits_untouched(
+    session: AsyncSession, session_factory: SessionFactory
+) -> None:
     audit = Audit(
         url="https://example.com/",
         status=AuditStatus.FAILED,
@@ -66,6 +118,8 @@ async def test_process_audit_leaves_finished_audits_untouched(session: AsyncSess
     session.add(audit)
     await session.commit()
 
-    await process_audit(session, audit.id)
+    await process_audit(session, audit.id, StubCollector([sample_report(Device.MOBILE)]))
 
-    assert audit.status is AuditStatus.FAILED
+    stored = await reload_audit(session_factory, audit.id)
+    assert stored.status is AuditStatus.FAILED
+    assert stored.reports == []
