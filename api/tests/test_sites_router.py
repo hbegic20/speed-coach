@@ -1,0 +1,166 @@
+import secrets
+import uuid
+
+import pytest
+from fastapi import FastAPI, status
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.core.dependencies import get_job_queue
+from app.models.device_report import Device
+from app.services.audits import RUN_AUDIT_JOB, process_audit
+from tests.fakes import RecordingQueue, UnavailableQueue, sample_report, stub_services
+
+SessionFactory = async_sessionmaker[AsyncSession]
+SITE = {"url": "https://example.com"}
+MOBILE_SCORE = 41
+DESKTOP_SCORE = 88
+
+
+def owner_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {secrets.token_urlsafe(32)}"}
+
+
+@pytest.fixture
+def owner() -> dict[str, str]:
+    return owner_headers()
+
+
+async def completed_audit(client: AsyncClient, session_factory: SessionFactory) -> str:
+    submitted = (
+        await client.post("/audits", json={"url": "https://example.com", "language": "en"})
+    ).json()
+    reports = [
+        sample_report(Device.MOBILE, MOBILE_SCORE),
+        sample_report(Device.DESKTOP, DESKTOP_SCORE),
+    ]
+    async with session_factory() as session:
+        await process_audit(session, uuid.UUID(submitted["id"]), stub_services(reports))
+    return str(submitted["id"])
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {"Authorization": "Bearer short"}, {"Authorization": "Basic dXNlcjpwYXNz"}],
+)
+async def test_sites_require_a_valid_owner_token(
+    client: AsyncClient, headers: dict[str, str]
+) -> None:
+    response = await client.get("/sites", headers=headers)
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "owner_token_invalid"}
+
+
+async def test_track_site_returns_an_empty_history(
+    client: AsyncClient, owner: dict[str, str]
+) -> None:
+    response = await client.post("/sites", json=SITE, headers=owner)
+
+    assert response.status_code == status.HTTP_201_CREATED
+    body = response.json()
+    assert body["url"] == "https://example.com/"
+    assert body["latest_audit"] is None
+    assert body["checks"] == []
+
+
+async def test_track_site_rejects_private_urls(client: AsyncClient, owner: dict[str, str]) -> None:
+    response = await client.post("/sites", json={"url": "http://10.0.0.1"}, headers=owner)
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+async def test_tracking_the_same_url_twice_keeps_one_site(
+    client: AsyncClient, owner: dict[str, str]
+) -> None:
+    first = (await client.post("/sites", json=SITE, headers=owner)).json()
+    second = (
+        await client.post("/sites", json={"url": "https://example.com/"}, headers=owner)
+    ).json()
+
+    assert second["id"] == first["id"]
+    assert len((await client.get("/sites", headers=owner)).json()) == 1
+
+
+async def test_tracking_from_a_report_keeps_that_check(
+    client: AsyncClient, session_factory: SessionFactory, owner: dict[str, str]
+) -> None:
+    audit_id = await completed_audit(client, session_factory)
+
+    body = (await client.post("/sites", json={**SITE, "audit_id": audit_id}, headers=owner)).json()
+
+    assert body["latest_audit"] == {"audit_id": audit_id, "status": "completed"}
+    [check] = body["checks"]
+    assert check["audit_id"] == audit_id
+    assert check["platform"] == "wordpress"
+    assert check["mobile_performance_score"] == MOBILE_SCORE
+    assert check["desktop_performance_score"] == DESKTOP_SCORE
+
+
+async def test_owners_only_see_their_own_sites(client: AsyncClient, owner: dict[str, str]) -> None:
+    site = (await client.post("/sites", json=SITE, headers=owner)).json()
+    stranger = owner_headers()
+
+    assert (await client.get("/sites", headers=stranger)).json() == []
+    response = await client.get(f"/sites/{site['id']}", headers=stranger)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json() == {"detail": "site_not_found"}
+    deleted = await client.delete(f"/sites/{site['id']}", headers=stranger)
+    assert deleted.status_code == status.HTTP_404_NOT_FOUND
+
+
+async def test_recheck_queues_a_tracked_audit(
+    client: AsyncClient, owner: dict[str, str], job_queue: RecordingQueue
+) -> None:
+    site = (await client.post("/sites", json=SITE, headers=owner)).json()
+
+    response = await client.post(
+        f"/sites/{site['id']}/audits", json={"language": "bs"}, headers=owner
+    )
+
+    assert response.status_code == status.HTTP_202_ACCEPTED
+    audit = response.json()
+    assert audit["url"] == "https://example.com/"
+    assert audit["language"] == "bs"
+    assert job_queue.jobs == [(RUN_AUDIT_JOB, (audit["id"],))]
+    refreshed = (await client.get(f"/sites/{site['id']}", headers=owner)).json()
+    assert refreshed["latest_audit"] == {"audit_id": audit["id"], "status": "queued"}
+
+
+async def test_recheck_requires_a_supported_language(
+    client: AsyncClient, owner: dict[str, str]
+) -> None:
+    site = (await client.post("/sites", json=SITE, headers=owner)).json()
+
+    response = await client.post(
+        f"/sites/{site['id']}/audits", json={"language": "de"}, headers=owner
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+async def test_recheck_returns_503_when_queue_is_unavailable(
+    app: FastAPI, client: AsyncClient, owner: dict[str, str]
+) -> None:
+    site = (await client.post("/sites", json=SITE, headers=owner)).json()
+    app.dependency_overrides[get_job_queue] = UnavailableQueue
+
+    response = await client.post(
+        f"/sites/{site['id']}/audits", json={"language": "en"}, headers=owner
+    )
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.json() == {"detail": "audit_queue_unavailable"}
+
+
+async def test_untracking_keeps_the_reports(
+    client: AsyncClient, session_factory: SessionFactory, owner: dict[str, str]
+) -> None:
+    audit_id = await completed_audit(client, session_factory)
+    site = (await client.post("/sites", json={**SITE, "audit_id": audit_id}, headers=owner)).json()
+
+    response = await client.delete(f"/sites/{site['id']}", headers=owner)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert (await client.get("/sites", headers=owner)).json() == []
+    assert (await client.get(f"/audits/{audit_id}")).status_code == status.HTTP_200_OK

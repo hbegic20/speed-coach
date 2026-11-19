@@ -35,6 +35,12 @@ export function SiteHeader({ locale, dictionary }: SiteHeaderProps) {
         >
           {dictionary.header.howItWorks}
         </Link>
+        <Link
+          href={`/${locale}/sites`}
+          className="inline-flex min-h-11 items-center text-slate-700 hover:text-ink"
+        >
+          {dictionary.sites.navLink}
+        </Link>
         <Suspense
           fallback={
             <LanguageLinks

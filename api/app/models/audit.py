@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, string_enum
@@ -52,6 +52,9 @@ class Audit(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     url: Mapped[str] = mapped_column(String(MAX_URL_LENGTH))
     language: Mapped[Language] = mapped_column(string_enum(Language, 8))
+    tracked_site_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tracked_sites.id", ondelete="SET NULL"), index=True
+    )
     status: Mapped[AuditStatus] = mapped_column(
         string_enum(AuditStatus, 16), default=AuditStatus.QUEUED
     )

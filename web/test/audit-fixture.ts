@@ -1,4 +1,4 @@
-import type { Audit, DeviceReport, Recommendation } from "@/lib/api/schemas";
+import type { Audit, DeviceReport, Recommendation, Site, SiteCheck } from "@/lib/api/schemas";
 
 export function deviceReport(overrides: Partial<DeviceReport> = {}): DeviceReport {
   return {
@@ -69,6 +69,35 @@ export function audit(overrides: Partial<Audit> = {}): Audit {
         title: "Set long cache times",
         impact: "low",
         lighthouse_ids: ["uses-long-cache-ttl"],
+      }),
+    ],
+    ...overrides,
+  };
+}
+
+export function siteCheck(overrides: Partial<SiteCheck> = {}): SiteCheck {
+  return {
+    audit_id: "0b8f6f0e-1c2d-4e3f-8a9b-0c1d2e3f4a5b",
+    checked_at: "2026-11-10T09:00:00Z",
+    platform: "wordpress",
+    mobile_performance_score: 42,
+    desktop_performance_score: 80,
+    ...overrides,
+  };
+}
+
+export function site(overrides: Partial<Site> = {}): Site {
+  return {
+    id: "3e2d1c0b-9a8f-4e7d-8c6b-5a4f3e2d1c0b",
+    url: "https://www.example-restaurant.ba/",
+    created_at: "2026-11-10T08:59:00Z",
+    latest_audit: { audit_id: "7a6b5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d", status: "completed" },
+    checks: [
+      siteCheck(),
+      siteCheck({
+        audit_id: "7a6b5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d",
+        checked_at: "2026-11-17T09:00:00Z",
+        mobile_performance_score: 81,
       }),
     ],
     ...overrides,

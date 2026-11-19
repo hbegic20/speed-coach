@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
 from app.core.queue import create_job_queue
-from app.routers import audits, health
+from app.routers import audits, health, sites
 
 
 @asynccontextmanager
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="SpeedCoach API", lifespan=lifespan)
     app.include_router(health.router)
     app.include_router(audits.router)
+    app.include_router(sites.router)
     return app
 
 

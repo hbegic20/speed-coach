@@ -62,9 +62,15 @@ class _AuditFailedError(Exception):
 
 
 async def create_audit(
-    session: AsyncSession, queue: AuditQueue, url: str, language: Language
+    session: AsyncSession,
+    queue: AuditQueue,
+    url: str,
+    language: Language,
+    tracked_site_id: uuid.UUID | None = None,
 ) -> Audit:
-    audit = Audit(url=url, language=language, status=AuditStatus.QUEUED)
+    audit = Audit(
+        url=url, language=language, status=AuditStatus.QUEUED, tracked_site_id=tracked_site_id
+    )
     session.add(audit)
     await session.commit()
 

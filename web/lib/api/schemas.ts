@@ -74,7 +74,29 @@ export const auditSchema = z.object({
   recommendations: z.array(recommendationSchema),
 });
 
+const auditStatusSchema = auditSchema.shape.status;
+
+const siteCheckSchema = z.object({
+  audit_id: z.uuid(),
+  checked_at: z.iso.datetime({ offset: true }),
+  platform: z.enum(platforms).nullable(),
+  mobile_performance_score: score.nullable(),
+  desktop_performance_score: score.nullable(),
+});
+
+export const siteSchema = z.object({
+  id: z.uuid(),
+  url: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+  latest_audit: z.object({ audit_id: z.uuid(), status: auditStatusSchema }).nullable(),
+  checks: z.array(siteCheckSchema),
+});
+
+export const sitesSchema = z.array(siteSchema);
+
 export type Audit = z.infer<typeof auditSchema>;
+export type Site = z.infer<typeof siteSchema>;
+export type SiteCheck = z.infer<typeof siteCheckSchema>;
 export type DeviceReport = z.infer<typeof deviceReportSchema>;
 export type Recommendation = z.infer<typeof recommendationSchema>;
 export type Device = z.infer<typeof deviceSchema>;

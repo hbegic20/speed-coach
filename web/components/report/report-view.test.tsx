@@ -88,6 +88,12 @@ describe("ReportView", () => {
     expect(within(items[1] as HTMLElement).queryByText("Est. saving")).toBeNull();
   });
 
+  it("offers to track the site", () => {
+    renderReport(audit());
+
+    expect(screen.getByRole("button", { name: "Track this site" })).toBeDefined();
+  });
+
   it("uses generic fix instructions when the platform is unknown", () => {
     renderReport(audit({ platform: "unknown" }));
 

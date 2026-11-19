@@ -1,5 +1,6 @@
 import type { AuditFormState } from "@/app/[lang]/actions";
 import { AuditForm } from "@/components/audit-form";
+import { TrackSiteButton } from "@/components/sites/track-site-button";
 import type { Audit, Device } from "@/lib/api/schemas";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { fill } from "@/lib/i18n/fill";
@@ -49,14 +50,22 @@ export function ReportView({ audit, device, locale, dictionary, rerunAction }: R
             </p>
           ) : null}
         </div>
-        {report ? (
-          <DeviceToggle
-            current={report.device}
-            basePath={`/${locale}/audits/${audit.id}`}
-            groupLabel={labels.deviceGroup}
-            deviceLabels={labels.devices}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {report ? (
+            <DeviceToggle
+              current={report.device}
+              basePath={`/${locale}/audits/${audit.id}`}
+              groupLabel={labels.deviceGroup}
+              deviceLabels={labels.devices}
+            />
+          ) : null}
+          <TrackSiteButton
+            locale={locale}
+            auditId={audit.id}
+            url={audit.url}
+            label={dictionary.sites.trackButton}
           />
-        ) : null}
+        </div>
       </div>
 
       {audit.status === "queued" || audit.status === "running" ? (

@@ -38,3 +38,11 @@ export function displayHost(url: string): string {
   const path = pathname === "/" ? "" : pathname;
   return `${hostname.replace(/^www\./, "")}${path}`;
 }
+
+export function formatCheckDate(isoTimestamp: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(NUMBER_LOCALES[locale], {
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Sarajevo",
+  }).format(new Date(isoTimestamp));
+}
