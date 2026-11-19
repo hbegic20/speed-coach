@@ -1,23 +1,33 @@
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
 
-from fastapi import status
-from fastapi.testclient import TestClient
+from fastapi import FastAPI, status
+from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.dependencies import get_db_session
 
 
-def test_health_returns_ok_when_database_is_reachable(client: TestClient) -> None:
-    response = client.get("/health")
+async def test_health_returns_ok_when_database_is_reachable(client: AsyncClient) -> None:
+    response = await client.get("/health")
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"status": "ok"}
 
 
-def test_health_returns_503_when_database_is_unreachable(
-    client: TestClient, db_session: AsyncMock
+async def test_health_returns_503_when_database_is_unreachable(
+    app: FastAPI, client: AsyncClient
 ) -> None:
-    db_session.execute.side_effect = OperationalError("SELECT 1", {}, Exception("down"))
+    failing_session = AsyncMock(spec=AsyncSession)
+    failing_session.execute.side_effect = OperationalError("SELECT 1", {}, Exception("down"))
 
-    response = client.get("/health")
+    async def override_db_session() -> AsyncIterator[AsyncSession]:
+        yield failing_session
+
+    app.dependency_overrides[get_db_session] = override_db_session
+
+    response = await client.get("/health")
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert response.json() == {"status": "unavailable"}

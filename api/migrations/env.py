@@ -6,7 +6,7 @@ from sqlalchemy.engine import Connection
 
 from app.core.config import get_settings
 from app.core.db import create_engine
-from app.models.base import Base
+from app.models import Base
 
 if context.config.config_file_name is not None:
     fileConfig(context.config.config_file_name)
