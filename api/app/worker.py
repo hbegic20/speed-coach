@@ -1,6 +1,8 @@
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
+from arq import cron
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import get_settings
@@ -27,8 +29,17 @@ async def shutdown(context: dict[str, Any]) -> None:
     await engine.dispose()
 
 
+SCHEDULED_CHECKS_JOB = "app.jobs.run_scheduled_checks"
+SCHEDULE_TIMEZONE = ZoneInfo("Europe/Sarajevo")
+WEEKLY_CHECK_HOUR = 6
+
+
 class WorkerSettings:
     functions = (run_audit,)
+    cron_jobs = (
+        cron(SCHEDULED_CHECKS_JOB, weekday="mon", hour=WEEKLY_CHECK_HOUR, minute=0, unique=True),
+    )
+    timezone = SCHEDULE_TIMEZONE
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = create_redis_settings(get_settings())

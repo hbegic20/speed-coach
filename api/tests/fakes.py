@@ -16,14 +16,20 @@ from tests.gemini_payloads import sample_recommendation_set
 class RecordingQueue:
     def __init__(self) -> None:
         self.jobs: list[tuple[str, tuple[Any, ...]]] = []
+        self.delays: list[float | None] = []
 
-    async def enqueue_job(self, function: str, *args: Any) -> Job | None:
+    async def enqueue_job(
+        self, function: str, *args: Any, _defer_by: float | None = None
+    ) -> Job | None:
         self.jobs.append((function, args))
+        self.delays.append(_defer_by)
         return None
 
 
 class UnavailableQueue:
-    async def enqueue_job(self, function: str, *args: Any) -> Job | None:
+    async def enqueue_job(
+        self, function: str, *args: Any, _defer_by: float | None = None
+    ) -> Job | None:
         raise RedisConnectionError("Redis is unreachable")
 
 

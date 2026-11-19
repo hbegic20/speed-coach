@@ -11,6 +11,7 @@ from app.schemas.report import DeviceReportData
 from app.services.audits import (
     RUN_AUDIT_JOB,
     AuditQueueUnavailableError,
+    AuditRequest,
     AuditServices,
     create_audit,
     get_audit,
@@ -49,7 +50,7 @@ async def queued_audit(session: AsyncSession, language: Language = Language.ENGL
 async def test_create_audit_stores_a_queued_audit_and_enqueues_it(
     session: AsyncSession, job_queue: RecordingQueue
 ) -> None:
-    audit = await create_audit(session, job_queue, URL, Language.BOSNIAN)
+    audit = await create_audit(session, job_queue, AuditRequest(URL, Language.BOSNIAN))
 
     assert audit.url == URL
     assert audit.language is Language.BOSNIAN
@@ -62,7 +63,7 @@ async def test_create_audit_marks_audit_failed_when_queue_is_unavailable(
     session: AsyncSession,
 ) -> None:
     with pytest.raises(AuditQueueUnavailableError):
-        await create_audit(session, UnavailableQueue(), URL, Language.ENGLISH)
+        await create_audit(session, UnavailableQueue(), AuditRequest(URL, Language.ENGLISH))
 
     stored = (await session.scalars(select(Audit))).one()
     assert stored.status is AuditStatus.FAILED

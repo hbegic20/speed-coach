@@ -6,7 +6,12 @@ from app.core.dependencies import DbSession, JobQueue
 from app.core.rate_limits import limit_audit_creation
 from app.schemas.audit import AuditCreate, AuditResponse
 from app.schemas.errors import ErrorCode, ErrorResponse
-from app.services.audits import AuditQueueUnavailableError, create_audit, get_audit
+from app.services.audits import (
+    AuditQueueUnavailableError,
+    AuditRequest,
+    create_audit,
+    get_audit,
+)
 
 router = APIRouter(prefix="/audits", tags=["audits"])
 
@@ -22,7 +27,9 @@ router = APIRouter(prefix="/audits", tags=["audits"])
 )
 async def submit_audit(payload: AuditCreate, session: DbSession, queue: JobQueue) -> AuditResponse:
     try:
-        audit = await create_audit(session, queue, str(payload.url), payload.language)
+        audit = await create_audit(
+            session, queue, AuditRequest(url=str(payload.url), language=payload.language)
+        )
     except AuditQueueUnavailableError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

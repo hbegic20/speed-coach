@@ -58,6 +58,9 @@ Optional, with defaults:
 | `AUDIT_DAILY_LIMIT` | `30` | Audits per visitor per day |
 | `AUDIT_GLOBAL_DAILY_LIMIT` | `500` | Audits per day for everyone together |
 | `SITE_HOURLY_LIMIT` | `30` | Sites tracked per visitor per hour |
+| `SCHEDULED_CHECKS_ENABLED` | `true` | Weekly re-check of every tracked site |
+| `SCHEDULED_CHECK_MIN_INTERVAL_HOURS` | `144` | Skip sites checked more recently than this |
+| `SCHEDULED_CHECK_SPACING_SECONDS` | `20` | Gap between scheduled audits, to spread quota use |
 
 Railway sets `PORT`; the image listens on it.
 
@@ -81,6 +84,8 @@ Railway sets `PORT`; the image listens on it.
 4. Run Lighthouse against the Vercel URL; every category should be 95 or higher.
 
 ## Notes
+
+- **Weekly checks.** The worker re-checks every tracked site on Mondays at 06:00 Europe/Sarajevo, skipping sites checked in the last 6 days, in the language of each site's last check. Each check costs two PageSpeed runs and one Gemini call, so 200 tracked sites use about 400 PageSpeed requests and 200 Gemini calls every Monday. With 20 s spacing, 200 sites take a little over an hour to queue through. Scheduled checks are not counted against visitor rate limits or the daily total. Set `SCHEDULED_CHECKS_ENABLED=false` on the worker to pause them. The job is unique, so extra worker replicas don't run it twice.
 
 - **Rate limits and real visitor IPs.** Visitors are identified by the IP the web app forwards together with `WEB_PROXY_SECRET`. If the secret is missing or differs between Vercel and Railway, every visitor shares one bucket and the limits trip quickly. Direct API callers are counted by the address Railway's proxy connects from; the API does not trust `X-Forwarded-For`, which a caller could forge.
 - **Rollbacks.** Migrations have working downgrades, but roll back code first, then run `alembic downgrade -1` from the api service shell only if the schema itself must go back.

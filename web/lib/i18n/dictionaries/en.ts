@@ -108,14 +108,14 @@ export const en = {
     navLink: "My sites",
     metadataTitle: "My sites",
     heading: "My sites",
-    subheading: "Every check you run on a tracked site is saved here.",
+    subheading: "Tracked sites are checked automatically every Monday, and every check is saved here.",
     addSite: "Add site",
     trackButton: "Track this site",
     stats: {
       averageScore: "Avg. mobile performance",
       sinceFirst: "{change} since first check",
       sitesTracked: "Sites tracked",
-      sitesTrackedNote: "Re-check a site any time to add to its history",
+      sitesTrackedNote: "Checked every Monday, or whenever you re-check",
     },
     chart: {
       heading: "{site} · Performance",

@@ -116,14 +116,14 @@ export const bs: Dictionary = {
     navLink: "Moje stranice",
     metadataTitle: "Moje stranice",
     heading: "Moje stranice",
-    subheading: "Svaka provjera praćene stranice čuva se ovdje.",
+    subheading: "Praćene stranice provjeravamo automatski svakog ponedjeljka, a svaka provjera se čuva ovdje.",
     addSite: "Dodaj stranicu",
     trackButton: "Prati ovu stranicu",
     stats: {
       averageScore: "Prosječna brzina (mobitel)",
       sinceFirst: "{change} od prve provjere",
       sitesTracked: "Praćene stranice",
-      sitesTrackedNote: "Ponovite provjeru kad god želite da dopunite historiju",
+      sitesTrackedNote: "Automatski svakog ponedjeljka, ili kad sami ponovite provjeru",
     },
     chart: {
       heading: "{site} · Brzina",

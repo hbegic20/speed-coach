@@ -10,7 +10,7 @@ from app.models.audit import Audit, AuditStatus, Language
 from app.models.device_report import Device
 from app.models.tracked_site import TrackedSite
 from app.schemas.site import LatestAudit, SiteCheck, SiteResponse
-from app.services.audits import AuditQueue, create_audit
+from app.services.audits import AuditQueue, AuditRequest, create_audit
 
 MAX_CHECKS_PER_SITE = 52
 
@@ -55,7 +55,9 @@ async def recheck_site(
     language: Language,
 ) -> Audit:
     site = await _owned_site(session, owner, site_id)
-    return await create_audit(session, queue, site.url, language, tracked_site_id=site.id)
+    return await create_audit(
+        session, queue, AuditRequest(url=site.url, language=language, tracked_site_id=site.id)
+    )
 
 
 async def untrack_site(session: AsyncSession, owner: Owner, site_id: uuid.UUID) -> None:

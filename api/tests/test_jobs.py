@@ -1,5 +1,6 @@
 import ipaddress
 import json
+import secrets
 from typing import Any
 
 import httpx
@@ -7,15 +8,17 @@ from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.jobs import run_audit
+from app.core.owner import owner_from_token
+from app.jobs import run_audit, run_scheduled_checks
 from app.models.audit import Audit, AuditFailureReason, AuditStatus, Language, Platform
 from app.models.device_report import Device
 from app.services.audits import RUN_AUDIT_JOB
 from app.services.gemini import INTERACTIONS_ENDPOINT
 from app.services.page_fetch import IPAddress, PageFetcher
 from app.services.pagespeed import PAGESPEED_ENDPOINT
+from app.services.sites import track_site
 from tests.db import reload_audit
-from tests.fakes import InMemoryStore
+from tests.fakes import InMemoryStore, RecordingQueue
 from tests.gemini_payloads import recommendation_interaction, sample_recommendation_set
 from tests.pagespeed_payloads import lighthouse_payload
 
@@ -132,3 +135,34 @@ async def test_run_audit_records_quota_exhaustion(session_factory: SessionFactor
     assert stored.status is AuditStatus.FAILED
     assert stored.failure_reason is AuditFailureReason.PAGESPEED_QUOTA_EXCEEDED
     assert google.gemini_requests == []
+
+
+async def test_scheduled_checks_queue_every_due_site(
+    session_factory: SessionFactory, session: AsyncSession, job_queue: RecordingQueue
+) -> None:
+    await track_site(
+        session, owner_from_token(secrets.token_urlsafe(32)), "https://a.example/", None
+    )
+
+    scheduled = await run_scheduled_checks(
+        {"settings": worker_settings(), "session_factory": session_factory, "redis": job_queue}
+    )
+
+    assert scheduled == 1
+    assert len(job_queue.jobs) == 1
+
+
+async def test_scheduled_checks_can_be_switched_off(
+    session_factory: SessionFactory, session: AsyncSession, job_queue: RecordingQueue
+) -> None:
+    await track_site(
+        session, owner_from_token(secrets.token_urlsafe(32)), "https://a.example/", None
+    )
+    disabled = worker_settings().model_copy(update={"scheduled_checks_enabled": False})
+
+    scheduled = await run_scheduled_checks(
+        {"settings": disabled, "session_factory": session_factory, "redis": job_queue}
+    )
+
+    assert scheduled == 0
+    assert job_queue.jobs == []

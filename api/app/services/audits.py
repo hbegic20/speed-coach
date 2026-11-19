@@ -23,7 +23,9 @@ TERMINAL_STATUSES = frozenset({AuditStatus.COMPLETED, AuditStatus.FAILED})
 
 
 class AuditQueue(Protocol):
-    async def enqueue_job(self, function: str, *args: Any) -> Job | None: ...
+    async def enqueue_job(
+        self, function: str, *args: Any, _defer_by: float | None = None
+    ) -> Job | None: ...
 
 
 class ReportCollector(Protocol):
@@ -61,21 +63,31 @@ class _AuditFailedError(Exception):
         self.reason = reason
 
 
+@dataclass(frozen=True)
+class AuditRequest:
+    url: str
+    language: Language
+    tracked_site_id: uuid.UUID | None = None
+
+
 async def create_audit(
     session: AsyncSession,
     queue: AuditQueue,
-    url: str,
-    language: Language,
-    tracked_site_id: uuid.UUID | None = None,
+    request: AuditRequest,
+    *,
+    defer_seconds: float | None = None,
 ) -> Audit:
     audit = Audit(
-        url=url, language=language, status=AuditStatus.QUEUED, tracked_site_id=tracked_site_id
+        url=request.url,
+        language=request.language,
+        status=AuditStatus.QUEUED,
+        tracked_site_id=request.tracked_site_id,
     )
     session.add(audit)
     await session.commit()
 
     try:
-        await queue.enqueue_job(RUN_AUDIT_JOB, str(audit.id))
+        await queue.enqueue_job(RUN_AUDIT_JOB, str(audit.id), _defer_by=defer_seconds)
     except (RedisError, OSError) as error:
         logger.exception("Failed to enqueue audit %s", audit.id)
         await _fail(session, audit, AuditFailureReason.QUEUE_UNAVAILABLE)
