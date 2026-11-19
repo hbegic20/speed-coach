@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from typing import Any, Protocol
@@ -6,7 +7,7 @@ from arq.jobs import Job
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.audit import Audit, AuditFailureReason, AuditStatus
+from app.models.audit import Audit, AuditFailureReason, AuditStatus, Platform
 from app.models.device_report import DeviceReport
 from app.schemas.report import DeviceReportData
 from app.services.pagespeed import PageSpeedError
@@ -23,6 +24,10 @@ class AuditQueue(Protocol):
 
 class ReportCollector(Protocol):
     async def collect(self, url: str) -> list[DeviceReportData]: ...
+
+
+class PlatformDetector(Protocol):
+    async def detect(self, url: str) -> Platform: ...
 
 
 class AuditQueueUnavailableError(Exception):
@@ -50,7 +55,10 @@ async def get_audit(session: AsyncSession, audit_id: uuid.UUID) -> Audit | None:
 
 
 async def process_audit(
-    session: AsyncSession, audit_id: uuid.UUID, collector: ReportCollector
+    session: AsyncSession,
+    audit_id: uuid.UUID,
+    collector: ReportCollector,
+    detector: PlatformDetector,
 ) -> None:
     audit = await session.get(Audit, audit_id)
     if audit is None:
@@ -62,7 +70,7 @@ async def process_audit(
 
     await _set_status(session, audit, AuditStatus.RUNNING)
     try:
-        reports = await collector.collect(audit.url)
+        reports, platform = await _inspect_site(audit.url, collector, detector)
     except PageSpeedError as error:
         await _fail(session, audit, error.reason)
         return
@@ -70,8 +78,21 @@ async def process_audit(
         await _fail(session, audit, AuditFailureReason.INTERNAL_ERROR)
         raise
 
+    audit.platform = platform
     session.add_all(DeviceReport(audit_id=audit.id, **report.model_dump()) for report in reports)
     await _set_status(session, audit, AuditStatus.COMPLETED)
+
+
+async def _inspect_site(
+    url: str, collector: ReportCollector, detector: PlatformDetector
+) -> tuple[list[DeviceReportData], Platform]:
+    try:
+        async with asyncio.TaskGroup() as task_group:
+            reports = task_group.create_task(collector.collect(url))
+            platform = task_group.create_task(detector.detect(url))
+    except ExceptionGroup as errors:
+        raise errors.exceptions[0] from None
+    return reports.result(), platform.result()
 
 
 async def _set_status(session: AsyncSession, audit: Audit, status: AuditStatus) -> None:

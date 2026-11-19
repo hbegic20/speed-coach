@@ -1,12 +1,15 @@
+import ipaddress
+
 import httpx
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
 from app.jobs import run_audit
-from app.models.audit import Audit, AuditFailureReason, AuditStatus
+from app.models.audit import Audit, AuditFailureReason, AuditStatus, Platform
 from app.models.device_report import Device
 from app.services.audits import RUN_AUDIT_JOB
+from app.services.page_fetch import IPAddress, PageFetcher
 from tests.db import reload_audit
 from tests.fakes import InMemoryStore
 from tests.pagespeed_payloads import lighthouse_payload
@@ -32,6 +35,21 @@ def pagespeed_responding(status_code: int, scores: dict[str, float]) -> httpx.As
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
+async def resolve_to_public_address(host: str, port: int) -> list[IPAddress]:
+    return [ipaddress.ip_address("93.184.215.14")]
+
+
+def shopify_page_fetcher() -> PageFetcher:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, html='<script src="//cdn.shopify.com/s/theme.js"></script>')
+
+    return PageFetcher(
+        timeout_seconds=5,
+        resolver=resolve_to_public_address,
+        transport=httpx.MockTransport(handler),
+    )
+
+
 async def stored_audit(session_factory: SessionFactory, status: AuditStatus) -> Audit:
     async with session_factory() as session:
         audit = Audit(url="https://example.com/", status=status)
@@ -53,12 +71,14 @@ async def test_run_audit_stores_mobile_and_desktop_reports(
         "settings": worker_settings(),
         "http_client": pagespeed_responding(200, {"mobile": 0.37, "desktop": 0.81}),
         "redis": InMemoryStore(),
+        "page_fetcher": shopify_page_fetcher(),
     }
 
     await run_audit(context, str(audit.id))
 
     stored = await reload_audit(session_factory, audit.id)
     assert stored.status is AuditStatus.COMPLETED
+    assert stored.platform is Platform.SHOPIFY
     assert {report.device: report.performance_score for report in stored.reports} == {
         Device.MOBILE: 37,
         Device.DESKTOP: 81,
@@ -72,6 +92,7 @@ async def test_run_audit_records_quota_exhaustion(session_factory: SessionFactor
         "settings": worker_settings(),
         "http_client": pagespeed_responding(429, {"mobile": 0, "desktop": 0}),
         "redis": InMemoryStore(),
+        "page_fetcher": shopify_page_fetcher(),
     }
 
     await run_audit(context, str(audit.id))

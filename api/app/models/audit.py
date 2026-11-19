@@ -26,6 +26,19 @@ class AuditFailureReason(StrEnum):
     INTERNAL_ERROR = "internal_error"
 
 
+class Platform(StrEnum):
+    WORDPRESS = "wordpress"
+    SHOPIFY = "shopify"
+    WIX = "wix"
+    SQUARESPACE = "squarespace"
+    WEBFLOW = "webflow"
+    JOOMLA = "joomla"
+    DRUPAL = "drupal"
+    NEXTJS = "nextjs"
+    NUXT = "nuxt"
+    UNKNOWN = "unknown"
+
+
 class Audit(Base):
     __tablename__ = "audits"
 
@@ -37,6 +50,7 @@ class Audit(Base):
     failure_reason: Mapped[AuditFailureReason | None] = mapped_column(
         string_enum(AuditFailureReason, 32)
     )
+    platform: Mapped[Platform | None] = mapped_column(string_enum(Platform, 16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.dependencies import get_job_queue
 from app.models.device_report import Device
 from app.services.audits import RUN_AUDIT_JOB, process_audit
-from tests.fakes import RecordingQueue, StubCollector, UnavailableQueue, sample_report
+from tests.fakes import (
+    RecordingQueue,
+    StubCollector,
+    StubDetector,
+    UnavailableQueue,
+    sample_report,
+)
 
 
 async def test_submit_audit_queues_the_url(client: AsyncClient, job_queue: RecordingQueue) -> None:
@@ -19,6 +25,7 @@ async def test_submit_audit_queues_the_url(client: AsyncClient, job_queue: Recor
     assert body["status"] == "queued"
     assert body["failure_reason"] is None
     assert body["reports"] == []
+    assert body["platform"] is None
     assert job_queue.jobs == [(RUN_AUDIT_JOB, (body["id"],))]
 
 
@@ -76,10 +83,13 @@ async def test_read_audit_includes_device_reports(
     submitted = (await client.post("/audits", json={"url": "https://example.com"})).json()
     reports = [sample_report(Device.MOBILE, 41), sample_report(Device.DESKTOP, 88)]
     async with session_factory() as session:
-        await process_audit(session, uuid.UUID(submitted["id"]), StubCollector(reports))
+        await process_audit(
+            session, uuid.UUID(submitted["id"]), StubCollector(reports), StubDetector()
+        )
 
     response = await client.get(f"/audits/{submitted['id']}")
 
     body = response.json()
     assert body["status"] == "completed"
+    assert body["platform"] == "wordpress"
     assert body["reports"] == [report.model_dump(mode="json") for report in reports]

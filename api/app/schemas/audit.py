@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.audit import AuditFailureReason, AuditStatus
+from app.models.audit import AuditFailureReason, AuditStatus, Platform
 from app.schemas.public_url import PublicHttpUrl
 from app.schemas.report import DeviceReportData
 
@@ -21,6 +21,7 @@ class AuditResponse(BaseModel):
     url: str
     status: AuditStatus
     failure_reason: AuditFailureReason | None
+    platform: Platform | None
     created_at: datetime
     updated_at: datetime
     reports: list[DeviceReportData]

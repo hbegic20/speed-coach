@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     pagespeed_api_key: SecretStr
     pagespeed_timeout_seconds: float = Field(default=90, gt=0)
     pagespeed_cache_ttl_seconds: int = Field(default=900, gt=0)
+    page_fetch_timeout_seconds: float = Field(default=10, gt=0)
 
 
 @lru_cache

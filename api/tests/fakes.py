@@ -3,7 +3,7 @@ from typing import Any
 from arq.jobs import Job
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from app.models.audit import AuditFailureReason
+from app.models.audit import AuditFailureReason, Platform
 from app.models.device_report import Device
 from app.schemas.report import DeviceReportData, Finding
 from app.services.pagespeed import PageSpeedError
@@ -100,3 +100,11 @@ class RaisingCollector:
 
     async def collect(self, url: str) -> list[DeviceReportData]:
         raise self.error
+
+
+class StubDetector:
+    def __init__(self, platform: Platform = Platform.WORDPRESS) -> None:
+        self.platform = platform
+
+    async def detect(self, url: str) -> Platform:
+        return self.platform
