@@ -3,18 +3,26 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.core.dependencies import DbSession, JobQueue
+from app.core.dependencies import DbSession, JobQueue, SettingsDependency
 from app.core.owner import CurrentOwner
 from app.core.rate_limits import limit_audit_creation, limit_site_tracking
 from app.schemas.audit import AuditResponse
 from app.schemas.errors import ErrorCode, ErrorResponse
-from app.schemas.site import SiteCreate, SiteRecheck, SiteResponse
+from app.schemas.site import (
+    CompletedFixesUpdate,
+    SiteCreate,
+    SiteRecheck,
+    SiteResponse,
+    SitesResponse,
+)
 from app.services.audits import AuditQueueUnavailableError
 from app.services.sites import (
+    SiteLimitReachedError,
     SiteNotFoundError,
     get_site,
     list_sites,
     recheck_site,
+    set_completed_fixes,
     track_site,
     untrack_site,
 )
@@ -40,18 +48,34 @@ def site_not_found() -> HTTPException:
 
 
 @router.get("")
-async def read_sites(owner: CurrentOwner, session: DbSession) -> list[SiteResponse]:
-    return await list_sites(session, owner)
+async def read_sites(
+    owner: CurrentOwner, session: DbSession, settings: SettingsDependency
+) -> SitesResponse:
+    return SitesResponse(
+        sites=await list_sites(session, owner), site_limit=settings.max_sites_per_owner
+    )
 
 
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(limit_site_tracking)],
-    responses=RATE_LIMITED_RESPONSE,
+    responses={
+        **RATE_LIMITED_RESPONSE,
+        status.HTTP_409_CONFLICT: {"model": ErrorResponse},
+    },
 )
-async def create_site(payload: SiteCreate, owner: CurrentOwner, session: DbSession) -> SiteResponse:
-    site = await track_site(session, owner, str(payload.url), payload.audit_id)
+async def create_site(
+    payload: SiteCreate, owner: CurrentOwner, session: DbSession, settings: SettingsDependency
+) -> SiteResponse:
+    try:
+        site = await track_site(
+            session, owner, str(payload.url), payload.audit_id, settings.max_sites_per_owner
+        )
+    except SiteLimitReachedError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=ErrorCode.SITE_LIMIT_REACHED
+        ) from error
     return await get_site(session, owner, site.id)
 
 
@@ -90,6 +114,23 @@ async def recheck(
             detail=ErrorCode.AUDIT_QUEUE_UNAVAILABLE,
         ) from error
     return AuditResponse.model_validate(audit)
+
+
+@router.put(
+    "/{site_id}/completed-fixes",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=NOT_FOUND_RESPONSE,
+)
+async def update_completed_fixes(
+    site_id: uuid.UUID, payload: CompletedFixesUpdate, owner: CurrentOwner, session: DbSession
+) -> Response:
+    try:
+        await set_completed_fixes(
+            session, owner, site_id, payload.lighthouse_ids, completed=payload.completed
+        )
+    except SiteNotFoundError as error:
+        raise site_not_found() from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{site_id}", status_code=status.HTTP_204_NO_CONTENT, responses=NOT_FOUND_RESPONSE)

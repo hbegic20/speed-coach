@@ -43,18 +43,23 @@ async def test_rechecks_share_the_audit_limit(client: AsyncClient, settings: Set
     assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
 
+def new_owner(ip: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {secrets.token_urlsafe(32)}", **visitor(ip)}
+
+
 async def test_site_tracking_is_limited_per_visitor(
     client: AsyncClient, settings: Settings
 ) -> None:
-    owner = {"Authorization": f"Bearer {secrets.token_urlsafe(32)}", **visitor("203.0.113.11")}
     for index in range(settings.site_hourly_limit):
         response = await client.post(
-            "/sites", json={"url": f"https://site-{index}.example.com"}, headers=owner
+            "/sites",
+            json={"url": f"https://site-{index}.example.com"},
+            headers=new_owner("203.0.113.11"),
         )
         assert response.status_code == status.HTTP_201_CREATED
 
     blocked = await client.post(
-        "/sites", json={"url": "https://one-more.example.com"}, headers=owner
+        "/sites", json={"url": "https://one-more.example.com"}, headers=new_owner("203.0.113.11")
     )
 
     assert blocked.status_code == status.HTTP_429_TOO_MANY_REQUESTS

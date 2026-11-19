@@ -7,6 +7,7 @@ import { fill } from "@/lib/i18n/fill";
 import type { Locale } from "@/lib/i18n/locales";
 import { reportForDevice } from "@/lib/report/audit-view";
 import { displayHost, formatCheckedAt } from "@/lib/report/format";
+import type { FixTracking } from "@/lib/report/fix-status";
 import { platformName } from "@/lib/report/platform-names";
 import { FailurePanel, ProgressPanel } from "./audit-status-panel";
 import { DeviceToggle } from "./device-toggle";
@@ -20,9 +21,17 @@ type ReportViewProps = {
   locale: Locale;
   dictionary: Dictionary;
   rerunAction: (state: AuditFormState, formData: FormData) => Promise<AuditFormState>;
+  fixTracking: FixTracking | null;
 };
 
-export function ReportView({ audit, device, locale, dictionary, rerunAction }: ReportViewProps) {
+export function ReportView({
+  audit,
+  device,
+  locale,
+  dictionary,
+  rerunAction,
+  fixTracking,
+}: ReportViewProps) {
   const labels = dictionary.report;
   const report = reportForDevice(audit, device);
   const platform = platformName(audit.platform);
@@ -78,7 +87,13 @@ export function ReportView({ audit, device, locale, dictionary, rerunAction }: R
         <>
           <ScoreGrid report={report} labels={labels} />
           <VitalsCard report={report} locale={locale} labels={labels} />
-          <FixList audit={audit} report={report} locale={locale} labels={labels.fixes} />
+          <FixList
+            audit={audit}
+            report={report}
+            locale={locale}
+            tracking={fixTracking}
+            labels={labels.fixes}
+          />
         </>
       ) : null}
     </div>

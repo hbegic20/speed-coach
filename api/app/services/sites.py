@@ -1,16 +1,18 @@
 import uuid
 from collections import defaultdict
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.owner import Owner
 from app.models.audit import Audit, AuditStatus, Language
+from app.models.completed_fix import CompletedFix
 from app.models.device_report import Device
 from app.models.tracked_site import TrackedSite
-from app.schemas.site import LatestAudit, SiteCheck, SiteResponse
+from app.schemas.site import CompletedFixResponse, LatestAudit, SiteCheck, SiteResponse
 from app.services.audits import AuditQueue, AuditRequest, create_audit
+from app.services.fix_progress import fix_progress
 
 MAX_CHECKS_PER_SITE = 52
 
@@ -19,10 +21,21 @@ class SiteNotFoundError(Exception):
     pass
 
 
+class SiteLimitReachedError(Exception):
+    pass
+
+
 async def track_site(
-    session: AsyncSession, owner: Owner, url: str, audit_id: uuid.UUID | None
+    session: AsyncSession,
+    owner: Owner,
+    url: str,
+    audit_id: uuid.UUID | None,
+    site_limit: int,
 ) -> TrackedSite:
-    site = await _find_site_by_url(session, owner, url) or await _create_site(session, owner, url)
+    site = await _find_site_by_url(session, owner, url)
+    if site is None:
+        await _ensure_below_limit(session, owner, site_limit)
+        site = await _create_site(session, owner, url)
     if audit_id is not None:
         await _attach_audit(session, site, audit_id)
     await session.commit()
@@ -60,6 +73,28 @@ async def recheck_site(
     )
 
 
+async def set_completed_fixes(
+    session: AsyncSession,
+    owner: Owner,
+    site_id: uuid.UUID,
+    lighthouse_ids: list[str],
+    *,
+    completed: bool,
+) -> None:
+    site = await _owned_site(session, owner, site_id)
+    existing = {fix.lighthouse_id: fix for fix in site.completed_fixes}
+    requested = set(lighthouse_ids)
+    if completed:
+        site.completed_fixes.extend(
+            CompletedFix(lighthouse_id=lighthouse_id)
+            for lighthouse_id in requested - existing.keys()
+        )
+    else:
+        for lighthouse_id in requested & existing.keys():
+            site.completed_fixes.remove(existing[lighthouse_id])
+    await session.commit()
+
+
 async def untrack_site(session: AsyncSession, owner: Owner, site_id: uuid.UUID) -> None:
     site = await _owned_site(session, owner, site_id)
     await session.delete(site)
@@ -75,6 +110,11 @@ def site_response(site: TrackedSite, audits: list[Audit]) -> SiteResponse:
         created_at=site.created_at,
         latest_audit=LatestAudit(audit_id=latest.id, status=latest.status) if latest else None,
         checks=[_site_check(audit) for audit in completed[-MAX_CHECKS_PER_SITE:]],
+        completed_fixes=[
+            CompletedFixResponse(lighthouse_id=fix.lighthouse_id, completed_at=fix.completed_at)
+            for fix in site.completed_fixes
+        ],
+        fix_progress=fix_progress(completed[-1] if completed else None, site.completed_fixes),
     )
 
 
@@ -102,6 +142,16 @@ async def _audits_by_site(
         if audit.tracked_site_id is not None:
             grouped[audit.tracked_site_id].append(audit)
     return grouped
+
+
+async def _ensure_below_limit(session: AsyncSession, owner: Owner, site_limit: int) -> None:
+    tracked = await session.scalar(
+        select(func.count())
+        .select_from(TrackedSite)
+        .where(TrackedSite.owner_key_hash == owner.key_hash)
+    )
+    if (tracked or 0) >= site_limit:
+        raise SiteLimitReachedError
 
 
 async def _owned_site(session: AsyncSession, owner: Owner, site_id: uuid.UUID) -> TrackedSite:

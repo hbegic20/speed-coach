@@ -22,6 +22,7 @@ class AuditResponse(BaseModel):
     id: uuid.UUID
     url: str
     language: Language
+    tracked_site_id: uuid.UUID | None
     status: AuditStatus
     failure_reason: AuditFailureReason | None
     platform: Platform | None

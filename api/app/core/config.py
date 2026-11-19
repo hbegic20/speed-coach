@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     audit_daily_limit: int = Field(default=30, gt=0)
     audit_global_daily_limit: int = Field(default=500, gt=0)
     site_hourly_limit: int = Field(default=30, gt=0)
+    max_sites_per_owner: int = Field(default=3, gt=0)
     scheduled_checks_enabled: bool = True
     scheduled_check_min_interval_hours: int = Field(default=144, gt=0)
     scheduled_check_spacing_seconds: float = Field(default=20, ge=0)

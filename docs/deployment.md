@@ -58,6 +58,7 @@ Optional, with defaults:
 | `AUDIT_DAILY_LIMIT` | `30` | Audits per visitor per day |
 | `AUDIT_GLOBAL_DAILY_LIMIT` | `500` | Audits per day for everyone together |
 | `SITE_HOURLY_LIMIT` | `30` | Sites tracked per visitor per hour |
+| `MAX_SITES_PER_OWNER` | `3` | Free-plan limit on tracked sites per browser |
 | `SCHEDULED_CHECKS_ENABLED` | `true` | Weekly re-check of every tracked site |
 | `SCHEDULED_CHECK_MIN_INTERVAL_HOURS` | `144` | Skip sites checked more recently than this |
 | `SCHEDULED_CHECK_SPACING_SECONDS` | `20` | Gap between scheduled audits, to spread quota use |

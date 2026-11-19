@@ -55,6 +55,7 @@ export function audit(overrides: Partial<Audit> = {}): Audit {
     id: "6f1c2a8e-3b4d-4c5e-9f60-7a8b9c0d1e2f",
     url: "https://www.example-restaurant.ba/",
     language: "en",
+    tracked_site_id: null,
     status: "completed",
     failure_reason: null,
     platform: "wordpress",
@@ -100,6 +101,8 @@ export function site(overrides: Partial<Site> = {}): Site {
         mobile_performance_score: 81,
       }),
     ],
+    completed_fixes: [],
+    fix_progress: { completed: 0, total: 2, confirmed: 0 },
     ...overrides,
   };
 }

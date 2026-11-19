@@ -98,6 +98,7 @@ def recommendation_schema(lighthouse_ids: list[str]) -> dict[str, Any]:
             },
             "lighthouse_ids": {
                 "type": "array",
+                "minItems": 1,
                 "items": _string_enum_schema(lighthouse_ids, "Finding this fix resolves."),
             },
         },
@@ -170,25 +171,21 @@ def _prompted_lighthouse_ids(reports: list[DeviceReportData]) -> list[str]:
     )
 
 
-def _keep_known_ids(
-    recommendation_set: RecommendationSet, known_ids: set[str]
-) -> RecommendationSet:
-    return recommendation_set.model_copy(
-        update={
-            "recommendations": [
-                draft.model_copy(
-                    update={
-                        "lighthouse_ids": [
-                            lighthouse_id
-                            for lighthouse_id in draft.lighthouse_ids
-                            if lighthouse_id in known_ids
-                        ]
-                    }
-                )
-                for draft in recommendation_set.recommendations
-            ]
-        }
-    )
+class UngroundedRecommendationsError(Exception):
+    pass
+
+
+def _keep_grounded(recommendation_set: RecommendationSet, known_ids: set[str]) -> RecommendationSet:
+    grounded = []
+    for draft in recommendation_set.recommendations:
+        lighthouse_ids = [
+            lighthouse_id for lighthouse_id in draft.lighthouse_ids if lighthouse_id in known_ids
+        ]
+        if lighthouse_ids:
+            grounded.append(draft.model_copy(update={"lighthouse_ids": lighthouse_ids}))
+    if not grounded:
+        raise UngroundedRecommendationsError
+    return recommendation_set.model_copy(update={"recommendations": grounded})
 
 
 class RecommendationWriter:
@@ -211,9 +208,8 @@ class RecommendationWriter:
             try:
                 output = await self._generator.generate_json(system_instruction, prompt, schema)
                 recommendation_set = RecommendationSet.model_validate_json(output)
-            except (GeminiError, ValidationError):
+                return _keep_grounded(recommendation_set, set(lighthouse_ids))
+            except (GeminiError, ValidationError, UngroundedRecommendationsError):
                 logger.warning("Recommendation attempt %s failed", attempt, exc_info=True)
-                continue
-            return _keep_known_ids(recommendation_set, set(lighthouse_ids))
 
         raise RecommendationsUnavailableError

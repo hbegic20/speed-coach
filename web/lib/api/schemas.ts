@@ -64,6 +64,7 @@ export const auditSchema = z.object({
   id: z.uuid(),
   url: z.string(),
   language: z.enum(["bs", "en"]),
+  tracked_site_id: z.uuid().nullable(),
   status: z.enum(["queued", "running", "completed", "failed"]),
   failure_reason: z.enum(failureReasons).nullable(),
   platform: z.enum(platforms).nullable(),
@@ -84,19 +85,34 @@ const siteCheckSchema = z.object({
   desktop_performance_score: score.nullable(),
 });
 
+const completedFixSchema = z.object({
+  lighthouse_id: z.string(),
+  completed_at: z.iso.datetime({ offset: true }),
+});
+
 export const siteSchema = z.object({
   id: z.uuid(),
   url: z.string(),
   created_at: z.iso.datetime({ offset: true }),
   latest_audit: z.object({ audit_id: z.uuid(), status: auditStatusSchema }).nullable(),
   checks: z.array(siteCheckSchema),
+  completed_fixes: z.array(completedFixSchema),
+  fix_progress: z.object({
+    completed: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+    confirmed: z.number().int().nonnegative(),
+  }),
 });
 
-export const sitesSchema = z.array(siteSchema);
+export const siteListSchema = z.object({
+  sites: z.array(siteSchema),
+  site_limit: z.number().int().positive(),
+});
 
 export type Audit = z.infer<typeof auditSchema>;
 export type Site = z.infer<typeof siteSchema>;
 export type SiteCheck = z.infer<typeof siteCheckSchema>;
+export type CompletedFix = z.infer<typeof completedFixSchema>;
 export type DeviceReport = z.infer<typeof deviceReportSchema>;
 export type Recommendation = z.infer<typeof recommendationSchema>;
 export type Device = z.infer<typeof deviceSchema>;

@@ -141,7 +141,11 @@ async def test_writer_sends_each_finding_id_once_in_the_schema() -> None:
 
     [(_, _, schema)] = generator.calls
     item = schema["properties"]["recommendations"]["items"]
-    assert item["properties"]["lighthouse_ids"]["items"]["enum"] == ["render-blocking-resources"]
+    assert item["properties"]["lighthouse_ids"]["items"]["enum"] == [
+        "render-blocking-resources",
+        "uses-long-cache-ttl",
+    ]
+    assert item["properties"]["lighthouse_ids"]["minItems"] == 1
 
 
 async def test_writer_drops_lighthouse_ids_that_were_not_in_the_audit() -> None:
@@ -175,3 +179,35 @@ async def test_writer_gives_up_after_two_bad_attempts() -> None:
 
     with pytest.raises(RecommendationsUnavailableError):
         await write(generator, [sample_report(Device.MOBILE)])
+
+
+async def test_writer_drops_fixes_that_point_at_no_real_finding() -> None:
+    expected = sample_recommendation_set()
+    invented = expected.model_copy(
+        update={
+            "recommendations": [
+                *expected.recommendations,
+                expected.recommendations[0].model_copy(
+                    update={"title": "Invented fix", "lighthouse_ids": ["made-up-audit"]}
+                ),
+            ]
+        }
+    )
+    generator = ScriptedGenerator([as_json(invented)])
+
+    result = await write(generator, [sample_report(Device.MOBILE)])
+
+    assert [draft.title for draft in result.recommendations] == [
+        draft.title for draft in expected.recommendations
+    ]
+
+
+async def test_writer_retries_when_no_fix_is_grounded() -> None:
+    ungrounded = sample_recommendation_set(["made-up-audit"]).model_copy(
+        update={"recommendations": sample_recommendation_set(["made-up-audit"]).recommendations[:1]}
+    )
+    expected = sample_recommendation_set()
+    generator = ScriptedGenerator([as_json(ungrounded), as_json(expected)])
+
+    assert await write(generator, [sample_report(Device.MOBILE)]) == expected
+    assert len(generator.calls) == MAX_ATTEMPTS

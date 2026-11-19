@@ -14,12 +14,16 @@ from app.services.scheduled_checks import SchedulePolicy, due_checks, schedule_c
 from app.services.sites import track_site
 from tests.fakes import RecordingQueue, UnavailableQueue
 
+SITE_LIMIT = 10
+
 NOW = datetime(2026, 11, 23, 5, 0, tzinfo=UTC)
 WEEKLY = SchedulePolicy(min_interval=timedelta(days=6), spacing_seconds=20)
 
 
 async def tracked(session: AsyncSession, url: str) -> TrackedSite:
-    return await track_site(session, owner_from_token(secrets.token_urlsafe(32)), url, None)
+    return await track_site(
+        session, owner_from_token(secrets.token_urlsafe(32)), url, None, SITE_LIMIT
+    )
 
 
 async def previous_check(

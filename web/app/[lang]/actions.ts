@@ -6,7 +6,7 @@ import { defaultLocale, isLocale } from "@/lib/i18n/locales";
 import { requestClientIp } from "@/lib/request/client-ip";
 import { websiteUrlSchema } from "@/lib/validation/website-url";
 
-export type AuditFormError = "invalid_url" | "rate_limited" | "unavailable";
+export type AuditFormError = "invalid_url" | "rate_limited" | "site_limit_reached" | "unavailable";
 
 export type AuditFormState = {
   error: AuditFormError | null;

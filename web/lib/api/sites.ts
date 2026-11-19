@@ -1,8 +1,14 @@
 import type { Locale } from "@/lib/i18n/locales";
 import { apiUrl, proxyHeaders } from "./client";
-import { auditSchema, siteSchema, sitesSchema, type Audit, type Site } from "./schemas";
+import { auditSchema, siteListSchema, siteSchema, type Audit, type Site } from "./schemas";
 
 const UNAUTHORIZED = 401;
+const NOT_FOUND = 404;
+
+export type SiteList = {
+  sites: Site[];
+  siteLimit: number | null;
+};
 
 export type SitesCaller = {
   token: string;
@@ -34,13 +40,40 @@ async function request(
   return response;
 }
 
-export async function listSites(caller: SitesCaller): Promise<Site[]> {
+export async function listSites(caller: SitesCaller): Promise<SiteList> {
   try {
-    return sitesSchema.parse(await (await request(caller, "/sites")).json());
+    const body = siteListSchema.parse(await (await request(caller, "/sites")).json());
+    return { sites: body.sites, siteLimit: body.site_limit };
   } catch (error) {
-    if (error instanceof SitesApiError && error.status === UNAUTHORIZED) return [];
+    if (error instanceof SitesApiError && error.status === UNAUTHORIZED) {
+      return { sites: [], siteLimit: null };
+    }
     throw error;
   }
+}
+
+export async function getSite(caller: SitesCaller, siteId: string): Promise<Site | null> {
+  try {
+    const response = await request(caller, `/sites/${encodeURIComponent(siteId)}`);
+    return siteSchema.parse(await response.json());
+  } catch (error) {
+    if (error instanceof SitesApiError && [UNAUTHORIZED, NOT_FOUND].includes(error.status)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function setCompletedFixes(
+  caller: SitesCaller,
+  siteId: string,
+  lighthouseIds: string[],
+  completed: boolean,
+): Promise<void> {
+  await request(caller, `/sites/${encodeURIComponent(siteId)}/completed-fixes`, {
+    method: "PUT",
+    body: JSON.stringify({ lighthouse_ids: lighthouseIds, completed }),
+  });
 }
 
 export async function trackSite(caller: SitesCaller, url: string, auditId?: string): Promise<Site> {

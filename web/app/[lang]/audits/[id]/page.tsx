@@ -4,9 +4,13 @@ import { Suspense } from "react";
 import { z } from "zod";
 import { ReportView } from "@/components/report/report-view";
 import { getAudit } from "@/lib/api/audits";
+import type { Audit } from "@/lib/api/schemas";
+import { getSite } from "@/lib/api/sites";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { resolveLocale } from "@/lib/i18n/resolve-locale";
+import { readOwnerToken } from "@/lib/owner/token";
 import { parseDevice } from "@/lib/report/audit-view";
+import type { FixTracking } from "@/lib/report/fix-status";
 import { submitAudit } from "../../actions";
 
 const auditIdSchema = z.uuid();
@@ -18,6 +22,14 @@ export async function generateMetadata({ params }: AuditPageProps): Promise<Meta
   return { title: `${metadata.reportTitle} · ${metadata.title}`, robots: { index: false } };
 }
 
+async function loadFixTracking(audit: Audit): Promise<FixTracking | null> {
+  if (!audit.tracked_site_id) return null;
+  const token = await readOwnerToken();
+  if (!token) return null;
+  const site = await getSite({ token, clientIp: null }, audit.tracked_site_id);
+  return site ? { siteId: site.id, completedFixes: site.completed_fixes } : null;
+}
+
 async function AuditReport({ params, searchParams }: AuditPageProps) {
   const locale = await resolveLocale(params);
   const { id } = await params;
@@ -25,6 +37,7 @@ async function AuditReport({ params, searchParams }: AuditPageProps) {
 
   const [audit, query] = await Promise.all([getAudit(id), searchParams]);
   if (audit === null) notFound();
+  const fixTracking = await loadFixTracking(audit);
 
   return (
     <ReportView
@@ -33,6 +46,7 @@ async function AuditReport({ params, searchParams }: AuditPageProps) {
       locale={locale}
       dictionary={getDictionary(locale)}
       rerunAction={submitAudit.bind(null, locale)}
+      fixTracking={fixTracking}
     />
   );
 }

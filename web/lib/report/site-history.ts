@@ -43,6 +43,19 @@ export function averageChange(sites: Site[]): number | null {
   );
 }
 
+export type FixTotals = { completed: number; total: number; confirmed: number };
+
+export function fixTotals(sites: Site[]): FixTotals {
+  return sites.reduce(
+    (totals, site) => ({
+      completed: totals.completed + site.fix_progress.completed,
+      total: totals.total + site.fix_progress.total,
+      confirmed: totals.confirmed + site.fix_progress.confirmed,
+    }),
+    { completed: 0, total: 0, confirmed: 0 },
+  );
+}
+
 export function reportAuditId(site: Site): string | null {
   return latestCheck(site)?.audit_id ?? site.latest_audit?.audit_id ?? null;
 }

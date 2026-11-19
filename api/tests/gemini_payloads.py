@@ -26,7 +26,7 @@ def sample_recommendation_set(lighthouse_ids: list[str] | None = None) -> Recomm
                 impact=Impact.LOW,
                 effort=Effort.LOW,
                 devices=[Device.MOBILE],
-                lighthouse_ids=[],
+                lighthouse_ids=["uses-long-cache-ttl"],
             ),
         ],
     )

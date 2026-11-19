@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 
 from app.core.client_identity import client_id
-from app.core.config import Settings, get_settings
+from app.core.dependencies import SettingsDependency
 from app.schemas.errors import ErrorCode
 from app.services.rate_limit import (
     RateLimiter,
@@ -14,8 +14,6 @@ from app.services.rate_limit import (
 
 SECONDS_PER_DAY = 24 * 60 * 60
 SECONDS_PER_HOUR = 60 * 60
-
-SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
 def get_rate_limiter(request: Request) -> RateLimiter:

@@ -1,16 +1,20 @@
-import type { Audit, DeviceReport } from "@/lib/api/schemas";
+import { setFixCompletion } from "@/app/[lang]/sites/actions";
+import type { Audit, DeviceReport, Recommendation } from "@/lib/api/schemas";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { fill } from "@/lib/i18n/fill";
 import type { Locale } from "@/lib/i18n/locales";
 import { estimatedSavingMs } from "@/lib/report/audit-view";
 import { formatSaving } from "@/lib/report/format";
+import { canMarkFix, fixStatus, type FixTracking } from "@/lib/report/fix-status";
 import { platformName } from "@/lib/report/platform-names";
 import { FixCard } from "./fix-card";
+import { FixCompletion } from "./fix-completion";
 
 type FixListProps = {
   audit: Audit;
   report: DeviceReport;
   locale: Locale;
+  tracking: FixTracking | null;
   labels: Dictionary["report"]["fixes"];
 };
 
@@ -20,7 +24,26 @@ function FixNotice({ message }: { message: string }) {
   );
 }
 
-export function FixList({ audit, report, locale, labels }: FixListProps) {
+function completionFor(
+  recommendation: Recommendation,
+  { audit, report, locale, tracking, labels }: FixListProps,
+) {
+  if (!tracking || !canMarkFix(recommendation)) return null;
+  const status = fixStatus(recommendation, audit.created_at, tracking.completedFixes);
+  const toggle = setFixCompletion.bind(
+    null,
+    locale,
+    tracking.siteId,
+    audit.id,
+    report.device,
+    recommendation.lighthouse_ids,
+    status === "open",
+  );
+  return <FixCompletion status={status} toggle={toggle} labels={labels.completion} />;
+}
+
+export function FixList(props: FixListProps) {
+  const { audit, report, locale, labels } = props;
   const platform = platformName(audit.platform);
   const howToLabel = platform ? fill(labels.howTo, { platform }) : labels.howToGeneric;
 
@@ -54,6 +77,7 @@ export function FixList({ audit, report, locale, labels }: FixListProps) {
                     recommendation={recommendation}
                     howToLabel={howToLabel}
                     saving={saving === null ? null : formatSaving(saving, locale)}
+                    completion={completionFor(recommendation, props)}
                     labels={labels}
                   />
                 </li>

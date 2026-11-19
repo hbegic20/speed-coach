@@ -9,6 +9,7 @@ class ErrorCode(StrEnum):
     OWNER_TOKEN_INVALID = "owner_token_invalid"
     RATE_LIMITED = "rate_limited"
     SITE_NOT_FOUND = "site_not_found"
+    SITE_LIMIT_REACHED = "site_limit_reached"
 
 
 class ErrorResponse(BaseModel):

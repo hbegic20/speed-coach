@@ -16,7 +16,7 @@ class RecommendationDraft(BaseModel):
     impact: Impact
     effort: Effort
     devices: list[Device] = Field(min_length=1)
-    lighthouse_ids: list[str]
+    lighthouse_ids: list[str] = Field(min_length=1)
 
 
 class RecommendationSet(BaseModel):
@@ -30,3 +30,4 @@ class RecommendationResponse(RecommendationDraft):
     model_config = ConfigDict(from_attributes=True)
 
     rank: int
+    lighthouse_ids: list[str]

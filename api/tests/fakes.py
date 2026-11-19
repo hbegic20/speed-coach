@@ -77,7 +77,16 @@ def sample_report(device: Device, performance_score: int = 64) -> DeviceReportDa
                 display_value="Est savings of 900 ms",
                 savings_ms=900,
                 savings_bytes=None,
-            )
+            ),
+            Finding(
+                lighthouse_id="uses-long-cache-ttl",
+                title="Serve static assets with an efficient cache policy",
+                description="A long cache lifetime can speed up repeat visits.",
+                score=0.4,
+                display_value="12 resources found",
+                savings_ms=None,
+                savings_bytes=None,
+            ),
         ],
     )
 

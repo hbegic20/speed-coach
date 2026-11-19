@@ -6,6 +6,7 @@ import { TOO_MANY_REQUESTS } from "@/lib/api/client";
 import {
   SitesApiError,
   recheckSite,
+  setCompletedFixes,
   trackSite,
   untrackSite,
   type SitesCaller,
@@ -17,8 +18,12 @@ import { websiteUrlSchema } from "@/lib/validation/website-url";
 import type { AuditFormState } from "../actions";
 
 const UNPROCESSABLE_CONTENT = 422;
+const CONFLICT = 409;
+
+export type DashboardNotice = "rate_limited" | "site_limit_reached";
 
 const idSchema = z.uuid();
+const lighthouseIdsSchema = z.array(z.string().regex(/^[a-z0-9-]{1,128}$/)).min(1).max(20);
 
 function languageFrom(locale: string): Locale {
   return isLocale(locale) ? locale : defaultLocale;
@@ -28,12 +33,18 @@ function sitesPath(language: Locale, siteId?: string): string {
   return siteId ? `/${language}/sites?site=${siteId}` : `/${language}/sites`;
 }
 
-function rateLimitedPath(language: Locale): string {
-  return `/${language}/sites?notice=rate_limited`;
+function noticePath(language: Locale, notice: DashboardNotice): string {
+  return `/${language}/sites?notice=${notice}`;
 }
 
-function isRateLimited(error: unknown): boolean {
-  return error instanceof SitesApiError && error.status === TOO_MANY_REQUESTS;
+function hasStatus(error: unknown, status: number): boolean {
+  return error instanceof SitesApiError && error.status === status;
+}
+
+function noticeFor(error: unknown): DashboardNotice | null {
+  if (hasStatus(error, TOO_MANY_REQUESTS)) return "rate_limited";
+  if (hasStatus(error, CONFLICT)) return "site_limit_reached";
+  return null;
 }
 
 async function callerWith(token: string): Promise<SitesCaller> {
@@ -58,10 +69,9 @@ export async function addSite(
     const site = await trackSite(caller, parsed.data);
     auditId = (await recheckSite(caller, site.id, language)).id;
   } catch (error) {
-    if (error instanceof SitesApiError && error.status === UNPROCESSABLE_CONTENT) {
-      return { error: "invalid_url", url };
-    }
-    if (isRateLimited(error)) return { error: "rate_limited", url };
+    if (hasStatus(error, UNPROCESSABLE_CONTENT)) return { error: "invalid_url", url };
+    const notice = noticeFor(error);
+    if (notice) return { error: notice, url };
     console.error("Could not add the site", error);
     return { error: "unavailable", url };
   }
@@ -78,7 +88,8 @@ export async function trackAuditedSite(locale: string, auditId: string, url: str
   try {
     siteId = (await trackSite(caller, validUrl, validAuditId)).id;
   } catch (error) {
-    if (isRateLimited(error)) redirect(rateLimitedPath(language));
+    const notice = noticeFor(error);
+    if (notice) redirect(noticePath(language, notice));
     throw error;
   }
   redirect(sitesPath(language, siteId));
@@ -93,7 +104,7 @@ export async function recheckTrackedSite(locale: string, siteId: string) {
   try {
     auditId = (await recheckSite(await callerWith(token), idSchema.parse(siteId), language)).id;
   } catch (error) {
-    if (isRateLimited(error)) redirect(rateLimitedPath(language));
+    if (hasStatus(error, TOO_MANY_REQUESTS)) redirect(noticePath(language, "rate_limited"));
     throw error;
   }
   redirect(`/${language}/audits/${auditId}`);
@@ -104,4 +115,27 @@ export async function removeTrackedSite(locale: string, siteId: string) {
   const token = await readOwnerToken();
   if (token) await untrackSite(await callerWith(token), idSchema.parse(siteId));
   redirect(sitesPath(language));
+}
+
+export async function setFixCompletion(
+  locale: string,
+  siteId: string,
+  auditId: string,
+  device: string,
+  lighthouseIds: string[],
+  completed: boolean,
+) {
+  const language = languageFrom(locale);
+  const validAuditId = idSchema.parse(auditId);
+  const reportPath = `/${language}/audits/${validAuditId}${device === "desktop" ? "?device=desktop" : ""}`;
+  const token = await readOwnerToken();
+  if (!token) redirect(reportPath);
+
+  await setCompletedFixes(
+    await callerWith(token),
+    idSchema.parse(siteId),
+    lighthouseIdsSchema.parse(lighthouseIds),
+    completed,
+  );
+  redirect(reportPath);
 }

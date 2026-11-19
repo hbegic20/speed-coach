@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { Suspense } from "react";
 import { AuditForm } from "@/components/audit-form";
 import { SitePicker } from "@/components/sites/site-picker";
 import { SitesTable } from "@/components/sites/sites-table";
 import { StatCards } from "@/components/sites/stat-cards";
 import { TrendChart } from "@/components/sites/trend-chart";
-import { listSites } from "@/lib/api/sites";
+import { listSites, type SiteList } from "@/lib/api/sites";
 import type { Site } from "@/lib/api/schemas";
 import { getDictionary, type Dictionary } from "@/lib/i18n/dictionaries";
 import { fill } from "@/lib/i18n/fill";
@@ -15,7 +16,7 @@ import { resolveLocale } from "@/lib/i18n/resolve-locale";
 import { readOwnerToken } from "@/lib/owner/token";
 import { displayHost } from "@/lib/report/format";
 import { selectedSite } from "@/lib/report/site-history";
-import { addSite } from "./actions";
+import { addSite, type DashboardNotice } from "./actions";
 
 type SitesPageProps = PageProps<"/[lang]/sites">;
 
@@ -24,12 +25,13 @@ export async function generateMetadata({ params }: SitesPageProps): Promise<Meta
   return { title: `${sites.metadataTitle} · ${metadata.title}`, robots: { index: false } };
 }
 
-async function loadSites(): Promise<Site[] | null> {
+async function loadSites(): Promise<SiteList | null> {
   const token = await readOwnerToken();
-  if (!token) return [];
+  if (!token) return { sites: [], siteLimit: null };
   try {
     return await listSites({ token, clientIp: null });
   } catch (error) {
+    unstable_rethrow(error);
     console.error("Could not load tracked sites", error);
     return null;
   }
@@ -49,11 +51,13 @@ function EmptyState({ locale, labels }: { locale: Locale; labels: Dictionary["si
 
 function SitesOverview({
   sites,
+  siteLimit,
   selectedId,
   locale,
   dictionary,
 }: {
   sites: Site[];
+  siteLimit: number | null;
   selectedId: string | string[] | undefined;
   locale: Locale;
   dictionary: Dictionary;
@@ -63,7 +67,7 @@ function SitesOverview({
 
   return (
     <>
-      <StatCards sites={sites} labels={labels} />
+      <StatCards sites={sites} siteLimit={siteLimit} labels={labels} />
       {chartSite ? (
         <section
           aria-labelledby="trend-heading"
@@ -94,50 +98,81 @@ function SitesOverview({
   );
 }
 
+function AddSiteArea({
+  siteCount,
+  siteLimit,
+  locale,
+  dictionary,
+}: {
+  siteCount: number;
+  siteLimit: number | null;
+  locale: Locale;
+  dictionary: Dictionary;
+}) {
+  if (siteLimit !== null && siteCount >= siteLimit) {
+    return (
+      <p className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-700">
+        {fill(dictionary.sites.limitReached, { limit: siteLimit })}
+      </p>
+    );
+  }
+  return (
+    <AuditForm
+      action={addSite.bind(null, locale)}
+      labels={{ ...dictionary.form, submit: dictionary.sites.addSite }}
+      variant="compact"
+    />
+  );
+}
+
+const DASHBOARD_NOTICES: readonly DashboardNotice[] = ["rate_limited"];
+
+function dashboardNotice(value: string | string[] | undefined): DashboardNotice | null {
+  return DASHBOARD_NOTICES.find((notice) => notice === value) ?? null;
+}
+
 async function SitesDashboard({ params, searchParams }: SitesPageProps) {
   const locale = await resolveLocale(params);
   const dictionary = getDictionary(locale);
-  const [sites, query] = await Promise.all([loadSites(), searchParams]);
+  const [siteList, query] = await Promise.all([loadSites(), searchParams]);
 
-  if (sites === null) {
+  if (siteList === null) {
     return (
       <p role="alert" className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-700">
         {dictionary.sites.unavailable}
       </p>
     );
   }
-  const notice =
-    query.notice === "rate_limited" ? (
-      <p role="alert" className="rounded-2xl border border-needs-work-soft bg-white p-4 font-medium text-needs-work-strong">
-        {dictionary.form.errors.rate_limited}
-      </p>
-    ) : null;
+  const notice = dashboardNotice(query.notice);
+  const { sites, siteLimit } = siteList;
   return (
     <>
-      {notice}
+      <AddSiteArea
+        siteCount={sites.length}
+        siteLimit={siteLimit}
+        locale={locale}
+        dictionary={dictionary}
+      />
+      {notice ? (
+        <p
+          role="alert"
+          className="rounded-2xl border border-needs-work-soft bg-white p-4 font-medium text-needs-work-strong"
+        >
+          {dictionary.form.errors[notice]}
+        </p>
+      ) : null}
       {sites.length === 0 ? (
         <EmptyState locale={locale} labels={dictionary.sites} />
       ) : (
         <SitesOverview
           sites={sites}
+          siteLimit={siteLimit}
           selectedId={query.site}
           locale={locale}
           dictionary={dictionary}
         />
       )}
     </>
-  );
-}
-
-async function AddSiteForm({ params }: Pick<SitesPageProps, "params">) {
-  const locale = await resolveLocale(params);
-  const { form, sites } = getDictionary(locale);
-  return (
-    <AuditForm
-      action={addSite.bind(null, locale)}
-      labels={{ ...form, submit: sites.addSite }}
-      variant="compact"
-    />
   );
 }
 
@@ -166,10 +201,7 @@ function DashboardSkeleton() {
 export default function SitesPage(props: SitesPageProps) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 pt-2 pb-16 sm:px-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <SitesHeading params={props.params} />
-        <AddSiteForm params={props.params} />
-      </div>
+      <SitesHeading params={props.params} />
       <Suspense fallback={<DashboardSkeleton />}>
         <SitesDashboard {...props} />
       </Suspense>

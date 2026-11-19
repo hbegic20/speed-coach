@@ -24,13 +24,42 @@ describe("ChangeIndicator", () => {
 
 describe("StatCards", () => {
   it("shows the average mobile score and its change since the first check", () => {
-    render(<StatCards sites={[site()]} labels={dictionary.sites} />);
+    render(<StatCards sites={[site()]} siteLimit={3} labels={dictionary.sites} />);
 
     const average = screen.getByText("Avg. mobile performance").closest("div");
     expect(average?.textContent).toContain("81");
     expect(average?.textContent).toContain("Up by 39");
     expect(average?.textContent).toContain("since first check");
-    expect(screen.getByText("Sites tracked").closest("div")?.textContent).toContain("1");
+    expect(screen.getByText("Sites tracked").closest("div")?.textContent).toContain("1 of 3");
+  });
+});
+
+describe("StatCards issues fixed", () => {
+  it("adds up fix progress across sites", () => {
+    const first = site({ fix_progress: { completed: 2, total: 5, confirmed: 1 } });
+    const second = site({ id: "second", fix_progress: { completed: 1, total: 3, confirmed: 1 } });
+    render(<StatCards sites={[first, second]} siteLimit={3} labels={dictionary.sites} />);
+
+    const card = screen.getByText("Issues fixed").closest("div");
+    expect(card?.textContent).toContain("3 / 8");
+    expect(card?.textContent).toContain("Confirmed by the latest check: 2");
+  });
+
+  it("explains how to start when nothing is tracked yet", () => {
+    const fresh = site({ fix_progress: { completed: 0, total: 0, confirmed: 0 } });
+    render(<StatCards sites={[fresh]} siteLimit={3} labels={dictionary.sites} />);
+
+    expect(screen.getByText("Mark fixes as done on a report")).toBeDefined();
+  });
+});
+
+describe("StatCards without a known limit", () => {
+  it("shows only the count", () => {
+    render(<StatCards sites={[site()]} siteLimit={null} labels={dictionary.sites} />);
+
+    const tracked = screen.getByText("Sites tracked").closest("div");
+    expect(tracked?.textContent).toContain("1");
+    expect(tracked?.textContent).not.toContain(" of ");
   });
 });
 

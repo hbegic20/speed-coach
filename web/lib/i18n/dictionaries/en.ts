@@ -43,6 +43,8 @@ export const en = {
     errors: {
       invalid_url: "Enter a public website address, for example https://example.ba.",
       rate_limited: "You've started a lot of checks in a short time. Please try again in a few minutes.",
+      site_limit_reached:
+        "You're already tracking the most sites the free plan allows. Stop tracking one on My sites to add this one.",
       unavailable: "We can't start a check right now. Please try again in a minute.",
     },
   },
@@ -84,6 +86,12 @@ export const en = {
       howTo: "How to fix in {platform}",
       howToGeneric: "How to fix",
       saving: "Est. saving",
+      completion: {
+        markDone: "Mark as done",
+        undo: "Undo",
+        done: "Done · re-check to confirm",
+        stillDetected: "Still detected in this check",
+      },
       impact: { high: "High impact", medium: "Medium impact", low: "Low impact" },
       none: "Nothing important to fix — your site is in great shape.",
       unavailable: "Fix suggestions aren't available right now. Your measurements below are ready.",
@@ -114,6 +122,11 @@ export const en = {
     stats: {
       averageScore: "Avg. mobile performance",
       sinceFirst: "{change} since first check",
+      issuesFixed: "Issues fixed",
+      issuesFixedValue: "{completed} / {total}",
+      confirmed: "Confirmed by the latest check: {confirmed}",
+      noFixesYet: "Mark fixes as done on a report",
+      sitesOfLimit: "{count} of {limit}",
       sitesTracked: "Sites tracked",
       sitesTrackedNote: "Checked every Monday, or whenever you re-check",
     },
@@ -154,6 +167,8 @@ export const en = {
       heading: "No tracked sites yet",
       body: "Track a site to keep every check and see how the score changes after your fixes.",
     },
+    limitReached:
+      "You're tracking {limit} sites, the most the free plan allows. Stop tracking one to add another.",
     unavailable: "We couldn't load your sites right now. Please try again in a minute.",
   },
   notFound: {

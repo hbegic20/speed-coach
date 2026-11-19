@@ -11,6 +11,8 @@ from app.models.tracked_site import OWNER_KEY_HASH_LENGTH
 from app.services.sites import MAX_CHECKS_PER_SITE, get_site, list_sites, track_site
 from tests.fakes import sample_report
 
+SITE_LIMIT = 10
+
 URL = "https://example.com/"
 
 
@@ -56,7 +58,7 @@ def test_owner_tokens_are_stored_only_as_hashes() -> None:
 
 async def test_history_lists_completed_checks_oldest_first(session: AsyncSession) -> None:
     owner = new_owner()
-    site = await track_site(session, owner, URL, None)
+    site = await track_site(session, owner, URL, None, SITE_LIMIT)
     first = await add_audit(
         session, site_id=site.id, status=AuditStatus.COMPLETED, mobile_score=41, minutes_ago=30
     )
@@ -80,7 +82,7 @@ async def test_history_lists_completed_checks_oldest_first(session: AsyncSession
 
 async def test_history_keeps_only_the_most_recent_checks(session: AsyncSession) -> None:
     owner = new_owner()
-    site = await track_site(session, owner, URL, None)
+    site = await track_site(session, owner, URL, None, SITE_LIMIT)
     for minutes_ago in range(MAX_CHECKS_PER_SITE + 3, 0, -1):
         await add_audit(
             session,
@@ -104,13 +106,13 @@ async def test_tracking_does_not_take_over_audits_of_other_urls_or_sites(
     )
     session.add(other_page)
     await session.commit()
-    first_site = await track_site(session, new_owner(), URL, None)
+    first_site = await track_site(session, new_owner(), URL, None, SITE_LIMIT)
     claimed = await add_audit(
         session, site_id=first_site.id, status=AuditStatus.COMPLETED, mobile_score=60, minutes_ago=4
     )
 
-    site = await track_site(session, owner, URL, other_page.id)
-    site = await track_site(session, owner, URL, claimed.id)
+    site = await track_site(session, owner, URL, other_page.id, SITE_LIMIT)
+    site = await track_site(session, owner, URL, claimed.id, SITE_LIMIT)
 
     assert (await get_site(session, owner, site.id)).checks == []
 
@@ -119,8 +121,8 @@ async def test_list_sites_returns_sites_in_the_order_they_were_tracked(
     session: AsyncSession,
 ) -> None:
     owner = new_owner()
-    await track_site(session, owner, "https://first.example/", None)
-    await track_site(session, owner, "https://second.example/", None)
+    await track_site(session, owner, "https://first.example/", None, SITE_LIMIT)
+    await track_site(session, owner, "https://second.example/", None, SITE_LIMIT)
 
     sites = await list_sites(session, owner)
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Recommendation } from "@/lib/api/schemas";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { IMPACT_BADGE } from "./tone-styles";
@@ -6,10 +7,17 @@ type FixCardProps = {
   recommendation: Recommendation;
   howToLabel: string;
   saving: string | null;
+  completion: ReactNode;
   labels: Dictionary["report"]["fixes"];
 };
 
-export function FixCard({ recommendation, howToLabel, saving, labels }: FixCardProps) {
+export function FixCard({
+  recommendation,
+  howToLabel,
+  saving,
+  completion,
+  labels,
+}: FixCardProps) {
   const titleId = `fix-${recommendation.rank}`;
 
   return (
@@ -44,12 +52,17 @@ export function FixCard({ recommendation, howToLabel, saving, labels }: FixCardP
           </ol>
         </div>
       </div>
-      {saving ? (
-        <div className="flex flex-[1_1_140px] flex-col items-start gap-1.5">
-          <span className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
-            {labels.saving}
-          </span>
-          <span className="font-heading text-[28px] font-bold text-good">{saving}</span>
+      {saving || completion ? (
+        <div className="flex flex-[1_1_160px] flex-col items-start gap-3">
+          {saving ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                {labels.saving}
+              </span>
+              <span className="font-heading text-[28px] font-bold text-good">{saving}</span>
+            </div>
+          ) : null}
+          {completion}
         </div>
       ) : null}
     </article>

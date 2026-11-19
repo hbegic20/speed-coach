@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { audit, site } from "@/test/audit-fixture";
-import { SitesApiError, listSites, recheckSite, trackSite, untrackSite } from "./sites";
+import {
+  SitesApiError,
+  getSite,
+  listSites,
+  recheckSite,
+  setCompletedFixes,
+  trackSite,
+  untrackSite,
+} from "./sites";
 
 const API_URL = "http://api.test";
 const CALLER = { token: "a".repeat(43), clientIp: "203.0.113.7" };
@@ -29,9 +37,9 @@ afterEach(() => {
 
 describe("sites API client", () => {
   it("lists sites with the owner token", async () => {
-    const fetchMock = respondWith(200, [site()]);
+    const fetchMock = respondWith(200, { sites: [site()], site_limit: 3 });
 
-    expect(await listSites(CALLER)).toEqual([site()]);
+    expect(await listSites(CALLER)).toEqual({ sites: [site()], siteLimit: 3 });
     const { url, headers } = lastRequest(fetchMock);
     expect(url).toBe(`${API_URL}/sites`);
     expect(headers.get("Authorization")).toBe(`Bearer ${CALLER.token}`);
@@ -40,7 +48,7 @@ describe("sites API client", () => {
   it("treats an unknown owner as having no sites", async () => {
     respondWith(401, { detail: "owner_token_invalid" });
 
-    expect(await listSites(CALLER)).toEqual([]);
+    expect(await listSites(CALLER)).toEqual({ sites: [], siteLimit: null });
   });
 
   it("raises other API failures", async () => {
@@ -71,6 +79,28 @@ describe("sites API client", () => {
     const { url, init } = lastRequest(fetchMock);
     expect(url).toBe(`${API_URL}/sites/${site().id}/audits`);
     expect(JSON.parse(String(init?.body))).toEqual({ language: "bs" });
+  });
+
+  it("loads one owned site and treats a stranger's site as missing", async () => {
+    respondWith(200, site());
+    expect(await getSite(CALLER, site().id)).toEqual(site());
+
+    respondWith(404, { detail: "site_not_found" });
+    expect(await getSite(CALLER, site().id)).toBeNull();
+  });
+
+  it("marks fixes as done", async () => {
+    const fetchMock = respondWith(204);
+
+    await setCompletedFixes(CALLER, site().id, ["unused-css"], true);
+
+    const { url, init } = lastRequest(fetchMock);
+    expect(url).toBe(`${API_URL}/sites/${site().id}/completed-fixes`);
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      lighthouse_ids: ["unused-css"],
+      completed: true,
+    });
   });
 
   it("stops tracking a site", async () => {

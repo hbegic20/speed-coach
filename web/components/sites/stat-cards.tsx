@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import type { Site } from "@/lib/api/schemas";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
-import { averageChange, averageLatestScore } from "@/lib/report/site-history";
+import { fill } from "@/lib/i18n/fill";
+import { averageChange, averageLatestScore, fixTotals } from "@/lib/report/site-history";
 import { ChangeIndicator } from "./change-indicator";
 
 type StatCardsProps = {
   sites: Site[];
+  siteLimit: number | null;
   labels: Dictionary["sites"];
 };
 
@@ -36,9 +38,10 @@ function SinceFirstCheck({ change, labels }: { change: number; labels: Dictionar
   );
 }
 
-export function StatCards({ sites, labels }: StatCardsProps) {
+export function StatCards({ sites, siteLimit, labels }: StatCardsProps) {
   const averageScore = averageLatestScore(sites);
   const change = averageChange(sites);
+  const fixes = fixTotals(sites);
 
   return (
     <dl className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
@@ -50,8 +53,21 @@ export function StatCards({ sites, labels }: StatCardsProps) {
         }
       />
       <StatCard
+        label={labels.stats.issuesFixed}
+        value={fill(labels.stats.issuesFixedValue, fixes)}
+        note={
+          fixes.total === 0
+            ? labels.stats.noFixesYet
+            : fill(labels.stats.confirmed, { confirmed: fixes.confirmed })
+        }
+      />
+      <StatCard
         label={labels.stats.sitesTracked}
-        value={String(sites.length)}
+        value={
+          siteLimit === null
+            ? String(sites.length)
+            : fill(labels.stats.sitesOfLimit, { count: sites.length, limit: siteLimit })
+        }
         note={labels.stats.sitesTrackedNote}
       />
     </dl>

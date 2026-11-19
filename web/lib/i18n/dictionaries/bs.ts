@@ -46,6 +46,8 @@ export const bs: Dictionary = {
     errors: {
       invalid_url: "Unesite adresu javne web stranice, na primjer https://primjer.ba.",
       rate_limited: "Pokrenuli ste mnogo provjera u kratkom vremenu. Pokušajte ponovo za nekoliko minuta.",
+      site_limit_reached:
+        "Već pratite najviše stranica koje besplatni paket dozvoljava. Prestanite pratiti jednu na stranici Moje stranice da biste dodali ovu.",
       unavailable: "Provjeru trenutno nije moguće pokrenuti. Pokušajte ponovo za minutu.",
     },
   },
@@ -87,6 +89,12 @@ export const bs: Dictionary = {
       howTo: "Kako popraviti na platformi {platform}",
       howToGeneric: "Kako popraviti",
       saving: "Procijenjena ušteda",
+      completion: {
+        markDone: "Označi kao urađeno",
+        undo: "Poništi",
+        done: "Urađeno · ponovite provjeru da potvrdite",
+        stillDetected: "I dalje prisutno u ovoj provjeri",
+      },
       impact: { high: "Veliki uticaj", medium: "Srednji uticaj", low: "Mali uticaj" },
       none: "Nema ništa važno za popraviti — vaša stranica je u odličnom stanju.",
       unavailable:
@@ -122,6 +130,11 @@ export const bs: Dictionary = {
     stats: {
       averageScore: "Prosječna brzina (mobitel)",
       sinceFirst: "{change} od prve provjere",
+      issuesFixed: "Riješeni problemi",
+      issuesFixedValue: "{completed} / {total}",
+      confirmed: "Potvrđeno zadnjom provjerom: {confirmed}",
+      noFixesYet: "Označite popravke kao urađene u izvještaju",
+      sitesOfLimit: "{count} od {limit}",
       sitesTracked: "Praćene stranice",
       sitesTrackedNote: "Automatski svakog ponedjeljka, ili kad sami ponovite provjeru",
     },
@@ -162,6 +175,8 @@ export const bs: Dictionary = {
       heading: "Još ne pratite nijednu stranicu",
       body: "Pratite stranicu da sačuvate svaku provjeru i vidite kako se ocjena mijenja nakon popravki.",
     },
+    limitReached:
+      "Pratite najviše stranica koje besplatni paket dozvoljava ({limit}). Prestanite pratiti jednu da biste dodali drugu.",
     unavailable: "Trenutno ne možemo učitati vaše stranice. Pokušajte ponovo za minutu.",
   },
   notFound: {

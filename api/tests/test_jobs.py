@@ -22,6 +22,8 @@ from tests.fakes import InMemoryStore, RecordingQueue
 from tests.gemini_payloads import recommendation_interaction, sample_recommendation_set
 from tests.pagespeed_payloads import lighthouse_payload
 
+SITE_LIMIT = 10
+
 SessionFactory = async_sessionmaker[AsyncSession]
 
 
@@ -141,7 +143,7 @@ async def test_scheduled_checks_queue_every_due_site(
     session_factory: SessionFactory, session: AsyncSession, job_queue: RecordingQueue
 ) -> None:
     await track_site(
-        session, owner_from_token(secrets.token_urlsafe(32)), "https://a.example/", None
+        session, owner_from_token(secrets.token_urlsafe(32)), "https://a.example/", None, SITE_LIMIT
     )
 
     scheduled = await run_scheduled_checks(
@@ -156,7 +158,7 @@ async def test_scheduled_checks_can_be_switched_off(
     session_factory: SessionFactory, session: AsyncSession, job_queue: RecordingQueue
 ) -> None:
     await track_site(
-        session, owner_from_token(secrets.token_urlsafe(32)), "https://a.example/", None
+        session, owner_from_token(secrets.token_urlsafe(32)), "https://a.example/", None, SITE_LIMIT
     )
     disabled = worker_settings().model_copy(update={"scheduled_checks_enabled": False})
 

@@ -1,8 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { audit, deviceReport } from "@/test/audit-fixture";
-import type { Audit, Device } from "@/lib/api/schemas";
+import { audit, deviceReport, recommendation } from "@/test/audit-fixture";
+import type { Audit, CompletedFix, Device } from "@/lib/api/schemas";
+import type { FixTracking } from "@/lib/report/fix-status";
 import type { Locale } from "@/lib/i18n/locales";
 import { ReportView } from "./report-view";
 
@@ -16,9 +17,19 @@ async function rerunAction() {
   return { error: null, url: "" };
 }
 
+const SITE_ID = "3e2d1c0b-9a8f-4e7d-8c6b-5a4f3e2d1c0b";
+
+function tracking(completedFixes: CompletedFix[] = []): FixTracking {
+  return { siteId: SITE_ID, completedFixes };
+}
+
 function renderReport(
   shown: Audit,
-  { device = "mobile", locale = "en" }: { device?: Device; locale?: Locale } = {},
+  {
+    device = "mobile",
+    locale = "en",
+    fixTracking = null,
+  }: { device?: Device; locale?: Locale; fixTracking?: FixTracking | null } = {},
 ) {
   render(
     <ReportView
@@ -27,6 +38,7 @@ function renderReport(
       locale={locale}
       dictionary={getDictionary(locale)}
       rerunAction={rerunAction}
+      fixTracking={fixTracking}
     />,
   );
 }
@@ -151,5 +163,48 @@ describe("ReportView", () => {
     expect(screen.getByText("Prepoznato: WordPress")).toBeDefined();
     expect(screen.getAllByText("Kako popraviti na platformi WordPress")).toHaveLength(2);
     expect(screen.getByText("−1,2 s")).toBeDefined();
+  });
+
+  it("offers no fix tracking on reports of untracked sites", () => {
+    renderReport(audit());
+
+    expect(screen.queryByRole("button", { name: "Mark as done" })).toBeNull();
+  });
+
+  it("lets the site owner mark each fix as done", () => {
+    renderReport(audit({ tracked_site_id: SITE_ID }), { fixTracking: tracking() });
+
+    expect(screen.getAllByRole("button", { name: "Mark as done" })).toHaveLength(2);
+  });
+
+  it("shows fixes marked after this check as done, with undo", () => {
+    const marked = { lighthouse_id: "render-blocking-resources", completed_at: "2026-11-20T08:00:00Z" };
+    renderReport(audit({ tracked_site_id: SITE_ID }), { fixTracking: tracking([marked]) });
+
+    const [first, second] = screen.getAllByRole("article");
+    expect(within(first as HTMLElement).getByText("Done · re-check to confirm")).toBeDefined();
+    expect(within(first as HTMLElement).getByRole("button", { name: "Undo" })).toBeDefined();
+    expect(within(second as HTMLElement).getByRole("button", { name: "Mark as done" })).toBeDefined();
+  });
+
+  it("flags fixes that this check still detects", () => {
+    const markedEarlier = {
+      lighthouse_id: "render-blocking-resources",
+      completed_at: "2026-11-01T08:00:00Z",
+    };
+    renderReport(audit({ tracked_site_id: SITE_ID }), { fixTracking: tracking([markedEarlier]) });
+
+    const [first] = screen.getAllByRole("article");
+    expect(within(first as HTMLElement).getByText("Still detected in this check")).toBeDefined();
+  });
+
+  it("does not offer marking for older fixes without lighthouse problems", () => {
+    const older = audit({
+      tracked_site_id: SITE_ID,
+      recommendations: [recommendation({ lighthouse_ids: [] })],
+    });
+    renderReport(older, { fixTracking: tracking() });
+
+    expect(screen.queryByRole("button", { name: "Mark as done" })).toBeNull();
   });
 });
