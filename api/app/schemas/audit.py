@@ -3,8 +3,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.audit import AuditFailureReason, AuditStatus, Platform
+from app.models.audit import AuditFailureReason, AuditStatus, Language, Platform
 from app.schemas.public_url import PublicHttpUrl
+from app.schemas.recommendation import RecommendationResponse
 from app.schemas.report import DeviceReportData
 
 
@@ -12,6 +13,7 @@ class AuditCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     url: PublicHttpUrl
+    language: Language
 
 
 class AuditResponse(BaseModel):
@@ -19,9 +21,12 @@ class AuditResponse(BaseModel):
 
     id: uuid.UUID
     url: str
+    language: Language
     status: AuditStatus
     failure_reason: AuditFailureReason | None
     platform: Platform | None
+    summary: str | None
     created_at: datetime
     updated_at: datetime
     reports: list[DeviceReportData]
+    recommendations: list[RecommendationResponse]

@@ -2,11 +2,12 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, string_enum
 from app.models.device_report import DeviceReport
+from app.models.recommendation import Recommendation
 
 MAX_URL_LENGTH = 2048
 
@@ -23,7 +24,13 @@ class AuditFailureReason(StrEnum):
     SITE_UNREACHABLE = "site_unreachable"
     PAGESPEED_QUOTA_EXCEEDED = "pagespeed_quota_exceeded"
     PAGESPEED_UNAVAILABLE = "pagespeed_unavailable"
+    RECOMMENDATIONS_UNAVAILABLE = "recommendations_unavailable"
     INTERNAL_ERROR = "internal_error"
+
+
+class Language(StrEnum):
+    BOSNIAN = "bs"
+    ENGLISH = "en"
 
 
 class Platform(StrEnum):
@@ -44,6 +51,7 @@ class Audit(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     url: Mapped[str] = mapped_column(String(MAX_URL_LENGTH))
+    language: Mapped[Language] = mapped_column(string_enum(Language, 8))
     status: Mapped[AuditStatus] = mapped_column(
         string_enum(AuditStatus, 16), default=AuditStatus.QUEUED
     )
@@ -51,6 +59,7 @@ class Audit(Base):
         string_enum(AuditFailureReason, 32)
     )
     platform: Mapped[Platform | None] = mapped_column(string_enum(Platform, 16))
+    summary: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -59,4 +68,9 @@ class Audit(Base):
         lazy="selectin",
         cascade="all, delete-orphan",
         order_by=DeviceReport.device.desc(),
+    )
+    recommendations: Mapped[list[Recommendation]] = relationship(
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        order_by=Recommendation.rank,
     )

@@ -14,7 +14,7 @@ from app.schemas.audit import AuditCreate
     ],
 )
 def test_accepts_public_website_urls(submitted: str, normalized: str) -> None:
-    assert str(AuditCreate.model_validate({"url": submitted}).url) == normalized
+    assert str(AuditCreate.model_validate({"url": submitted, "language": "en"}).url) == normalized
 
 
 @pytest.mark.parametrize(
@@ -42,9 +42,26 @@ def test_accepts_public_website_urls(submitted: str, normalized: str) -> None:
 )
 def test_rejects_urls_that_are_not_public_websites(submitted: str) -> None:
     with pytest.raises(ValidationError):
-        AuditCreate.model_validate({"url": submitted})
+        AuditCreate.model_validate({"url": submitted, "language": "en"})
 
 
 def test_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
-        AuditCreate.model_validate({"url": "https://example.com", "device": "mobile"})
+        AuditCreate.model_validate(
+            {"url": "https://example.com", "language": "en", "device": "mobile"}
+        )
+
+
+@pytest.mark.parametrize("language", ["bs", "en"])
+def test_accepts_supported_languages(language: str) -> None:
+    payload = AuditCreate.model_validate({"url": "https://example.com", "language": language})
+
+    assert payload.language == language
+
+
+@pytest.mark.parametrize(
+    "payload", [{"url": "https://example.com"}, {"url": "https://example.com", "language": "de"}]
+)
+def test_requires_a_supported_language(payload: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        AuditCreate.model_validate(payload)

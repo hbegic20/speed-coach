@@ -17,7 +17,7 @@ router = APIRouter(prefix="/audits", tags=["audits"])
 )
 async def submit_audit(payload: AuditCreate, session: DbSession, queue: JobQueue) -> AuditResponse:
     try:
-        audit = await create_audit(session, queue, str(payload.url))
+        audit = await create_audit(session, queue, str(payload.url), payload.language)
     except AuditQueueUnavailableError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
