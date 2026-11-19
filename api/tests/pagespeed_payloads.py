@@ -35,6 +35,15 @@ FINDING_AUDITS: dict[str, dict[str, Any]] = {
 }
 
 
+ACCESSIBILITY_AUDITS: dict[str, dict[str, Any]] = {
+    "color-contrast": {"score": 0, "scoreDisplayMode": "binary"},
+}
+
+
+def _category(score: float | None, audit_ids: list[str]) -> dict[str, Any]:
+    return {"score": score, "auditRefs": [{"id": audit_id} for audit_id in audit_ids]}
+
+
 def _audit(audit_id: str, fields: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": audit_id,
@@ -50,11 +59,17 @@ def lighthouse_payload(
 ) -> dict[str, Any]:
     audits = {
         audit_id: _audit(audit_id, fields)
-        for audit_id, fields in {**METRIC_AUDITS, **FINDING_AUDITS}.items()
+        for audit_id, fields in {**METRIC_AUDITS, **FINDING_AUDITS, **ACCESSIBILITY_AUDITS}.items()
     }
+    performance_audit_ids = [*METRIC_AUDITS, *FINDING_AUDITS]
     lighthouse_result: dict[str, Any] = {
         "lighthouseVersion": "12.8.2",
-        "categories": {"performance": {"id": "performance", "score": score}},
+        "categories": {
+            "performance": _category(score, performance_audit_ids),
+            "accessibility": _category(0.78, list(ACCESSIBILITY_AUDITS)),
+            "best-practices": _category(0.83, []),
+            "seo": _category(0.91, []),
+        },
         "audits": audits,
     }
     if runtime_error is not None:

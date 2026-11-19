@@ -35,11 +35,14 @@ async def test_requests_a_performance_audit_for_the_device() -> None:
 
     [request] = requests
     assert str(request.url).startswith(PAGESPEED_ENDPOINT)
-    assert dict(request.url.params) == {
-        "url": "https://example.com/",
-        "strategy": "desktop",
-        "category": "performance",
-    }
+    assert request.url.params["url"] == "https://example.com/"
+    assert request.url.params["strategy"] == "desktop"
+    assert request.url.params.get_list("category") == [
+        "performance",
+        "accessibility",
+        "best-practices",
+        "seo",
+    ]
     assert request.headers["X-goog-api-key"] == API_KEY
 
 
@@ -51,6 +54,9 @@ async def test_builds_report_with_score_and_metrics() -> None:
     assert report.model_dump(exclude={"findings"}) == {
         "device": Device.MOBILE,
         "performance_score": 42,
+        "accessibility_score": 78,
+        "best_practices_score": 83,
+        "seo_score": 91,
         "first_contentful_paint_ms": 1800.5,
         "largest_contentful_paint_ms": 4200.0,
         "total_blocking_time_ms": 350.0,
@@ -169,3 +175,18 @@ async def test_reports_site_unreachable_when_lighthouse_cannot_measure(
         await client.fetch_report("https://example.com/", Device.MOBILE)
 
     assert raised.value.reason is AuditFailureReason.SITE_UNREACHABLE
+
+
+async def test_leaves_category_scores_empty_when_pagespeed_omits_them() -> None:
+    payload = lighthouse_payload()
+    categories = payload["lighthouseResult"]["categories"]
+    payload["lighthouseResult"]["categories"] = {"performance": categories["performance"]}
+    client = client_for(respond_with(200, payload))
+
+    report = await client.fetch_report("https://example.com/", Device.MOBILE)
+
+    assert (report.accessibility_score, report.best_practices_score, report.seo_score) == (
+        None,
+        None,
+        None,
+    )

@@ -12,3 +12,12 @@ export function pathnameHasLocale(pathname: string): boolean {
   const [, firstSegment = ""] = pathname.split("/");
   return isLocale(firstSegment);
 }
+
+export function localizedPath(pathname: string, locale: Locale): string {
+  const segments = pathname.split("/");
+  if (pathnameHasLocale(pathname)) {
+    segments[1] = locale;
+    return segments.join("/");
+  }
+  return pathname === "/" ? `/${locale}` : `/${locale}${pathname}`;
+}

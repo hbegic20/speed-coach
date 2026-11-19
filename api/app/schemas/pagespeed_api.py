@@ -22,12 +22,20 @@ class LighthouseAudit(PageSpeedApiModel):
     details: LighthouseAuditDetails | None = None
 
 
-class PerformanceCategory(PageSpeedApiModel):
+class LighthouseAuditRef(PageSpeedApiModel):
+    id: str
+
+
+class LighthouseCategory(PageSpeedApiModel):
     score: float | None = None
+    audit_refs: list[LighthouseAuditRef] = Field(alias="auditRefs")
 
 
 class LighthouseCategories(PageSpeedApiModel):
-    performance: PerformanceCategory
+    performance: LighthouseCategory
+    accessibility: LighthouseCategory | None = None
+    best_practices: LighthouseCategory | None = Field(default=None, alias="best-practices")
+    seo: LighthouseCategory | None = None
 
 
 class LighthouseRuntimeError(PageSpeedApiModel):

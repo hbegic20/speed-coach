@@ -7,6 +7,10 @@
   --color-good: #047857;
   --color-needs-work: #b45309;
   --color-poor: #b91c1c;
+  --color-good-soft: #d1fae5;
+  --color-needs-work-soft: #fef3c7;
+  --color-needs-work-strong: #92400e;
+  --color-poor-soft: #fee2e2;
 }
 
 @theme inline {

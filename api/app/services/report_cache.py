@@ -19,7 +19,7 @@ class KeyValueStore(Protocol):
 
 def cache_key(url: str, device: Device) -> str:
     url_hash = hashlib.sha256(url.encode()).hexdigest()
-    return f"pagespeed:v1:{device.value}:{url_hash}"
+    return f"pagespeed:v2:{device.value}:{url_hash}"
 
 
 class ReportCache:

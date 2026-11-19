@@ -7,6 +7,7 @@ from app.models.audit import AuditFailureReason
 from app.models.device_report import Device
 from app.schemas.pagespeed_api import (
     LighthouseAudit,
+    LighthouseCategory,
     LighthouseResult,
     PageSpeedErrorResponse,
     PageSpeedResponse,
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 PAGESPEED_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 LIGHTHOUSE_PAGE_ERROR_PREFIX = "Lighthouse returned error"
 PASSING_SCORE = 0.9
+CATEGORIES = ("performance", "accessibility", "best-practices", "seo")
 MEASURED_SCORE_MODES = frozenset({"numeric", "binary", "metricSavings"})
 TIME_SAVINGS_METRICS = ("LCP", "FCP", "TBT", "INP")
 METRIC_AUDIT_IDS = frozenset(
@@ -58,7 +60,11 @@ class PageSpeedClient:
         try:
             return await self._http_client.get(
                 PAGESPEED_ENDPOINT,
-                params={"url": url, "strategy": device.value, "category": "performance"},
+                params=[
+                    ("url", url),
+                    ("strategy", device.value),
+                    *(("category", category) for category in CATEGORIES),
+                ],
                 headers={"X-goog-api-key": self._api_key.get_secret_value()},
             )
         except httpx.HTTPError as error:
@@ -100,7 +106,10 @@ def build_device_report(result: LighthouseResult, device: Device) -> DeviceRepor
 
     return DeviceReportData(
         device=device,
-        performance_score=round(score * 100),
+        performance_score=_percentage(score),
+        accessibility_score=_category_score(result.categories.accessibility),
+        best_practices_score=_category_score(result.categories.best_practices),
+        seo_score=_category_score(result.categories.seo),
         first_contentful_paint_ms=_metric(result, "first-contentful-paint"),
         largest_contentful_paint_ms=_metric(result, "largest-contentful-paint"),
         total_blocking_time_ms=_metric(result, "total-blocking-time"),
@@ -110,13 +119,28 @@ def build_device_report(result: LighthouseResult, device: Device) -> DeviceRepor
     )
 
 
+def _percentage(score: float) -> int:
+    return round(score * 100)
+
+
+def _category_score(category: LighthouseCategory | None) -> int | None:
+    if category is None or category.score is None:
+        return None
+    return _percentage(category.score)
+
+
 def _metric(result: LighthouseResult, audit_id: str) -> float | None:
     audit = result.audits.get(audit_id)
     return audit.numeric_value if audit else None
 
 
 def _findings(result: LighthouseResult) -> list[Finding]:
-    findings = [_to_finding(audit) for audit in result.audits.values() if _needs_work(audit)]
+    performance_audit_ids = {ref.id for ref in result.categories.performance.audit_refs}
+    findings = [
+        _to_finding(audit)
+        for audit in result.audits.values()
+        if audit.id in performance_audit_ids and _needs_work(audit)
+    ]
     return sorted(findings, key=lambda finding: (-(finding.savings_ms or 0), finding.score))
 
 

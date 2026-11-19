@@ -18,6 +18,9 @@ class DeviceReportData(BaseModel):
 
     device: Device
     performance_score: int = Field(ge=0, le=100)
+    accessibility_score: int | None = Field(ge=0, le=100)
+    best_practices_score: int | None = Field(ge=0, le=100)
+    seo_score: int | None = Field(ge=0, le=100)
     first_contentful_paint_ms: float | None
     largest_contentful_paint_ms: float | None
     total_blocking_time_ms: float | None

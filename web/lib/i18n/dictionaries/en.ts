@@ -2,9 +2,11 @@ export const en = {
   metadata: {
     title: "SpeedCoach",
     description: "Find out why your website is slow and get plain-language fixes for your platform.",
+    reportTitle: "Speed report",
   },
   header: {
     homeLink: "SpeedCoach home",
+    howItWorks: "How it works",
     languageNavigation: "Language",
   },
   languageNames: {
@@ -12,8 +14,102 @@ export const en = {
     en: "English",
   },
   home: {
-    heading: "Make your website faster",
-    lead: "Paste a URL and get a ranked list of fixes for your platform, in plain language.",
+    badge: "Free website speed check · AI explanations",
+    heading: "Find out why your website is slow — and exactly how to fix it.",
+    lead: "Paste a link. We run a real Lighthouse audit, then explain every problem in plain language with fixes for your stack — WordPress, Next.js, Shopify and more.",
+    note: "No sign-up needed · Results in about a minute",
+    howItWorksHeading: "How it works",
+    steps: [
+      {
+        title: "Paste your link",
+        body: "Any public page — your homepage, a product page, a blog post.",
+      },
+      {
+        title: "We run a real audit",
+        body: "Google Lighthouse on mobile and desktop: performance, accessibility, best practices, SEO and Core Web Vitals.",
+      },
+      {
+        title: "AI tells you what to fix",
+        body: "Your top fixes ranked by impact, explained simply, with steps for the platform your site runs on.",
+      },
+    ],
+  },
+  form: {
+    urlLabel: "Website URL",
+    placeholder: "https://your-website.ba",
+    submit: "Analyze",
+    rerun: "Re-run",
+    pending: "Starting…",
+    errors: {
+      invalid_url: "Enter a public website address, for example https://example.ba.",
+      unavailable: "We can't start a check right now. Please try again in a minute.",
+    },
+  },
+  report: {
+    checkedAt: "Checked {date}",
+    platform: "Detected: {platform}",
+    deviceGroup: "Device",
+    devices: { mobile: "Mobile", desktop: "Desktop" },
+    scoresLabel: "Scores",
+    scoreAria: "{label} score {value} of 100",
+    noScore: "Not measured",
+    categories: {
+      performance: "Performance",
+      accessibility: "Accessibility",
+      bestPractices: "Best practices",
+      seo: "SEO",
+    },
+    tones: { good: "Good", needsWork: "Needs work", poor: "Poor" },
+    vitals: {
+      heading: "Core Web Vitals",
+      subheading: "What Google uses to rank page experience",
+      largestContentfulPaint: {
+        name: "Largest Contentful Paint",
+        plain: "How quickly the main content of the page appears.",
+      },
+      totalBlockingTime: {
+        name: "Total Blocking Time",
+        plain: "How long the page is too busy to react to taps and clicks.",
+      },
+      cumulativeLayoutShift: {
+        name: "Cumulative Layout Shift",
+        plain: "How much content jumps around while the page loads.",
+      },
+      notMeasured: "Not measured",
+    },
+    fixes: {
+      heading: "Your top fixes",
+      badge: "AI · for {platform}",
+      howTo: "How to fix in {platform}",
+      howToGeneric: "How to fix",
+      saving: "Est. saving",
+      impact: { high: "High impact", medium: "Medium impact", low: "Low impact" },
+      none: "Nothing important to fix — your site is in great shape.",
+      unavailable: "Fix suggestions aren't available right now. Your measurements below are ready.",
+    },
+    progress: {
+      heading: "Checking your site…",
+      queued: "Waiting in line",
+      running: "Running the audit",
+      body: "We're running Lighthouse on mobile and desktop and writing your fixes. It usually takes about a minute — this page updates by itself.",
+    },
+    failures: {
+      heading: "We couldn't finish this check",
+      queue_unavailable: "Our audit service is busy right now. Please try again in a minute.",
+      site_unreachable: "Google couldn't load this page. Check that the address is right and the site is online.",
+      pagespeed_quota_exceeded: "We've hit today's limit of speed checks. Please try again later.",
+      pagespeed_unavailable: "The speed test service isn't responding right now. Please try again in a minute.",
+      recommendations_unavailable: "Fix suggestions aren't available right now. Your measurements below are ready.",
+      internal_error: "Something went wrong on our side. Please try again.",
+    },
+  },
+  notFound: {
+    heading: "Report not found",
+    body: "This report doesn't exist or the link is incomplete.",
+    action: "Check a website",
+  },
+  footer: {
+    builtBy: "Built by Haris Begić",
   },
 };
 

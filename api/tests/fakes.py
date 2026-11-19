@@ -54,6 +54,9 @@ def sample_report(device: Device, performance_score: int = 64) -> DeviceReportDa
     return DeviceReportData(
         device=device,
         performance_score=performance_score,
+        accessibility_score=78,
+        best_practices_score=83,
+        seo_score=91,
         first_contentful_paint_ms=1500.0,
         largest_contentful_paint_ms=3100.0,
         total_blocking_time_ms=210.0,
