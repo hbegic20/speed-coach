@@ -3,7 +3,7 @@ import { audit, site } from "@/test/audit-fixture";
 import { SitesApiError, listSites, recheckSite, trackSite, untrackSite } from "./sites";
 
 const API_URL = "http://api.test";
-const TOKEN = "a".repeat(43);
+const CALLER = { token: "a".repeat(43), clientIp: "203.0.113.7" };
 
 function respondWith(status: number, body?: unknown) {
   return vi
@@ -31,28 +31,28 @@ describe("sites API client", () => {
   it("lists sites with the owner token", async () => {
     const fetchMock = respondWith(200, [site()]);
 
-    expect(await listSites(TOKEN)).toEqual([site()]);
+    expect(await listSites(CALLER)).toEqual([site()]);
     const { url, headers } = lastRequest(fetchMock);
     expect(url).toBe(`${API_URL}/sites`);
-    expect(headers.get("Authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(headers.get("Authorization")).toBe(`Bearer ${CALLER.token}`);
   });
 
   it("treats an unknown owner as having no sites", async () => {
     respondWith(401, { detail: "owner_token_invalid" });
 
-    expect(await listSites(TOKEN)).toEqual([]);
+    expect(await listSites(CALLER)).toEqual([]);
   });
 
   it("raises other API failures", async () => {
     respondWith(500, {});
 
-    await expect(listSites(TOKEN)).rejects.toBeInstanceOf(SitesApiError);
+    await expect(listSites(CALLER)).rejects.toBeInstanceOf(SitesApiError);
   });
 
   it("tracks a site together with the audit it came from", async () => {
     const fetchMock = respondWith(201, site());
 
-    await trackSite(TOKEN, "https://example-restaurant.ba", audit().id);
+    await trackSite(CALLER, "https://example-restaurant.ba", audit().id);
 
     const { init } = lastRequest(fetchMock);
     expect(init?.method).toBe("POST");
@@ -65,7 +65,7 @@ describe("sites API client", () => {
   it("re-checks a site in the requested language", async () => {
     const fetchMock = respondWith(202, audit({ status: "queued" }));
 
-    const queued = await recheckSite(TOKEN, site().id, "bs");
+    const queued = await recheckSite(CALLER, site().id, "bs");
 
     expect(queued.status).toBe("queued");
     const { url, init } = lastRequest(fetchMock);
@@ -76,7 +76,7 @@ describe("sites API client", () => {
   it("stops tracking a site", async () => {
     const fetchMock = respondWith(204);
 
-    await untrackSite(TOKEN, site().id);
+    await untrackSite(CALLER, site().id);
 
     const { url, init } = lastRequest(fetchMock);
     expect(url).toBe(`${API_URL}/sites/${site().id}`);

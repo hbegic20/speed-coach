@@ -28,7 +28,7 @@ async function loadSites(): Promise<Site[] | null> {
   const token = await readOwnerToken();
   if (!token) return [];
   try {
-    return await listSites(token);
+    return await listSites({ token, clientIp: null });
   } catch (error) {
     console.error("Could not load tracked sites", error);
     return null;
@@ -106,9 +106,26 @@ async function SitesDashboard({ params, searchParams }: SitesPageProps) {
       </p>
     );
   }
-  if (sites.length === 0) return <EmptyState locale={locale} labels={dictionary.sites} />;
+  const notice =
+    query.notice === "rate_limited" ? (
+      <p role="alert" className="rounded-2xl border border-needs-work-soft bg-white p-4 font-medium text-needs-work-strong">
+        {dictionary.form.errors.rate_limited}
+      </p>
+    ) : null;
   return (
-    <SitesOverview sites={sites} selectedId={query.site} locale={locale} dictionary={dictionary} />
+    <>
+      {notice}
+      {sites.length === 0 ? (
+        <EmptyState locale={locale} labels={dictionary.sites} />
+      ) : (
+        <SitesOverview
+          sites={sites}
+          selectedId={query.site}
+          locale={locale}
+          dictionary={dictionary}
+        />
+      )}
+    </>
   );
 }
 

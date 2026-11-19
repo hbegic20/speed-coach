@@ -42,6 +42,7 @@ export const en = {
     pending: "Starting…",
     errors: {
       invalid_url: "Enter a public website address, for example https://example.ba.",
+      rate_limited: "You've started a lot of checks in a short time. Please try again in a few minutes.",
       unavailable: "We can't start a check right now. Please try again in a minute.",
     },
   },

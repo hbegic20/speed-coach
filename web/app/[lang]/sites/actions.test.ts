@@ -3,6 +3,8 @@ import { audit, site } from "@/test/audit-fixture";
 import { addSite, recheckTrackedSite, removeTrackedSite, trackAuditedSite } from "./actions";
 
 const TOKEN = "b".repeat(43);
+const CLIENT_IP = "203.0.113.7";
+const CALLER = { token: TOKEN, clientIp: CLIENT_IP };
 
 const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
@@ -18,6 +20,7 @@ vi.mock("@/lib/owner/token", () => ({
   ensureOwnerToken: mocks.ensureOwnerToken,
   readOwnerToken: mocks.readOwnerToken,
 }));
+vi.mock("@/lib/request/client-ip", () => ({ requestClientIp: async () => CLIENT_IP }));
 vi.mock("@/lib/api/sites", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/sites")>()),
   trackSite: mocks.trackSite,
@@ -34,7 +37,7 @@ function formWith(url: string): FormData {
 }
 
 afterEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe("addSite", () => {
@@ -45,8 +48,8 @@ describe("addSite", () => {
 
     await addSite("bs", initialState, formWith("example-restaurant.ba"));
 
-    expect(mocks.trackSite).toHaveBeenCalledWith(TOKEN, "https://example-restaurant.ba");
-    expect(mocks.recheckSite).toHaveBeenCalledWith(TOKEN, site().id, "bs");
+    expect(mocks.trackSite).toHaveBeenCalledWith(CALLER, "https://example-restaurant.ba");
+    expect(mocks.recheckSite).toHaveBeenCalledWith(CALLER, site().id, "bs");
     expect(mocks.redirect).toHaveBeenCalledWith(`/bs/audits/${audit().id}`);
   });
 
@@ -68,6 +71,31 @@ describe("addSite", () => {
   });
 });
 
+describe("rate limiting", () => {
+  it("tells the visitor to wait when adding sites too quickly", async () => {
+    const { SitesApiError } = await import("@/lib/api/sites");
+    mocks.ensureOwnerToken.mockResolvedValue(TOKEN);
+    mocks.trackSite.mockRejectedValue(new SitesApiError(429));
+
+    const state = await addSite("en", initialState, formWith("https://example.ba"));
+
+    expect(state).toEqual({ error: "rate_limited", url: "https://example.ba" });
+  });
+
+  it("sends a rate-limited re-check back to the dashboard with a notice", async () => {
+    const { SitesApiError } = await import("@/lib/api/sites");
+    mocks.readOwnerToken.mockResolvedValue(TOKEN);
+    mocks.recheckSite.mockRejectedValue(new SitesApiError(429));
+    mocks.redirect.mockImplementation((path: string) => {
+      throw new Error(`redirect:${path}`);
+    });
+
+    await expect(recheckTrackedSite("bs", site().id)).rejects.toThrow(
+      "redirect:/bs/sites?notice=rate_limited",
+    );
+  });
+});
+
 describe("trackAuditedSite", () => {
   it("tracks the reported site with its audit and opens the dashboard", async () => {
     mocks.ensureOwnerToken.mockResolvedValue(TOKEN);
@@ -75,7 +103,7 @@ describe("trackAuditedSite", () => {
 
     await trackAuditedSite("en", audit().id, audit().url);
 
-    expect(mocks.trackSite).toHaveBeenCalledWith(TOKEN, audit().url, audit().id);
+    expect(mocks.trackSite).toHaveBeenCalledWith(CALLER, audit().url, audit().id);
     expect(mocks.redirect).toHaveBeenCalledWith(`/en/sites?site=${site().id}`);
   });
 
@@ -92,7 +120,7 @@ describe("recheckTrackedSite and removeTrackedSite", () => {
 
     await recheckTrackedSite("bs", site().id);
 
-    expect(mocks.recheckSite).toHaveBeenCalledWith(TOKEN, site().id, "bs");
+    expect(mocks.recheckSite).toHaveBeenCalledWith(CALLER, site().id, "bs");
     expect(mocks.redirect).toHaveBeenCalledWith(`/bs/audits/${audit().id}`);
   });
 
@@ -101,7 +129,7 @@ describe("recheckTrackedSite and removeTrackedSite", () => {
 
     await removeTrackedSite("en", site().id);
 
-    expect(mocks.untrackSite).toHaveBeenCalledWith(TOKEN, site().id);
+    expect(mocks.untrackSite).toHaveBeenCalledWith(CALLER, site().id);
     expect(mocks.redirect).toHaveBeenCalledWith("/en/sites");
   });
 });

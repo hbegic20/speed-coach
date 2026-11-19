@@ -9,6 +9,7 @@ const { createAudit, redirect } = vi.hoisted(() => ({
 
 vi.mock("@/lib/api/audits", () => ({ createAudit }));
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/lib/request/client-ip", () => ({ requestClientIp: async () => "203.0.113.7" }));
 
 const initialState = { error: null, url: "" };
 
@@ -28,7 +29,7 @@ describe("submitAudit", () => {
 
     await submitAudit("bs", initialState, formWith("example-restaurant.ba"));
 
-    expect(createAudit).toHaveBeenCalledWith("https://example-restaurant.ba", "bs");
+    expect(createAudit).toHaveBeenCalledWith("https://example-restaurant.ba", "bs", "203.0.113.7");
     expect(redirect).toHaveBeenCalledWith(`/bs/audits/${audit().id}`);
   });
 
@@ -41,6 +42,14 @@ describe("submitAudit", () => {
       expect(createAudit).not.toHaveBeenCalled();
     },
   );
+
+  it("shows the rate limit message and keeps the typed url", async () => {
+    createAudit.mockResolvedValue({ ok: false, error: "rate_limited" });
+
+    const state = await submitAudit("en", initialState, formWith("https://example.ba"));
+
+    expect(state).toEqual({ error: "rate_limited", url: "https://example.ba" });
+  });
 
   it("keeps the typed url when the API is unavailable", async () => {
     createAudit.mockResolvedValue({ ok: false, error: "unavailable" });
@@ -56,6 +65,6 @@ describe("submitAudit", () => {
 
     await submitAudit("de", initialState, formWith("https://example.ba"));
 
-    expect(createAudit).toHaveBeenCalledWith("https://example.ba", "bs");
+    expect(createAudit).toHaveBeenCalledWith("https://example.ba", "bs", "203.0.113.7");
   });
 });

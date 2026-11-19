@@ -1,20 +1,24 @@
 import type { Locale } from "@/lib/i18n/locales";
-import { apiUrl } from "./client";
+import { TOO_MANY_REQUESTS, apiUrl, proxyHeaders } from "./client";
 import { auditSchema, type Audit } from "./schemas";
 
 export type CreateAuditResult =
   | { ok: true; audit: Audit }
-  | { ok: false; error: "invalid_url" | "unavailable" };
+  | { ok: false; error: "invalid_url" | "rate_limited" | "unavailable" };
 
 const UNPROCESSABLE_CONTENT = 422;
 const NOT_FOUND = 404;
 
-export async function createAudit(url: string, language: Locale): Promise<CreateAuditResult> {
+export async function createAudit(
+  url: string,
+  language: Locale,
+  clientIp: string | null,
+): Promise<CreateAuditResult> {
   let response: Response;
   try {
     response = await fetch(apiUrl("/audits"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...proxyHeaders(clientIp) },
       body: JSON.stringify({ url, language }),
       cache: "no-store",
     });
@@ -24,6 +28,7 @@ export async function createAudit(url: string, language: Locale): Promise<Create
   }
 
   if (response.status === UNPROCESSABLE_CONTENT) return { ok: false, error: "invalid_url" };
+  if (response.status === TOO_MANY_REQUESTS) return { ok: false, error: "rate_limited" };
   if (!response.ok) {
     console.error("SpeedCoach API rejected the audit", response.status);
     return { ok: false, error: "unavailable" };

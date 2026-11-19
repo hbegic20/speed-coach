@@ -154,3 +154,19 @@ def stub_services(
         detector=StubDetector(platform),
         writer=writer or RecordingWriter(),
     )
+
+
+class InMemoryCounterStore:
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+        self.windows: dict[str, int] = {}
+
+    async def increment(self, key: str, window_seconds: int) -> tuple[int, int]:
+        self.counts[key] = self.counts.get(key, 0) + 1
+        self.windows.setdefault(key, window_seconds)
+        return self.counts[key], self.windows[key]
+
+
+class UnavailableCounterStore:
+    async def increment(self, key: str, window_seconds: int) -> tuple[int, int]:
+        raise RedisConnectionError("Redis is unreachable")

@@ -45,6 +45,7 @@ export const bs: Dictionary = {
     pending: "Pokrećem…",
     errors: {
       invalid_url: "Unesite adresu javne web stranice, na primjer https://primjer.ba.",
+      rate_limited: "Pokrenuli ste mnogo provjera u kratkom vremenu. Pokušajte ponovo za nekoliko minuta.",
       unavailable: "Provjeru trenutno nije moguće pokrenuti. Pokušajte ponovo za minutu.",
     },
   },

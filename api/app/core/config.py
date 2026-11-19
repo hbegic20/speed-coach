@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr
     gemini_model: str = Field(default="gemini-3.8-flash", min_length=1)
     gemini_timeout_seconds: float = Field(default=60, gt=0)
+    web_proxy_secret: SecretStr | None = None
+    audit_burst_limit: int = Field(default=5, gt=0)
+    audit_burst_window_seconds: int = Field(default=600, gt=0)
+    audit_daily_limit: int = Field(default=30, gt=0)
+    audit_global_daily_limit: int = Field(default=500, gt=0)
+    site_hourly_limit: int = Field(default=30, gt=0)
 
 
 @lru_cache

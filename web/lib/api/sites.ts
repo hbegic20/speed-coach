@@ -1,8 +1,13 @@
 import type { Locale } from "@/lib/i18n/locales";
-import { apiUrl } from "./client";
+import { apiUrl, proxyHeaders } from "./client";
 import { auditSchema, siteSchema, sitesSchema, type Audit, type Site } from "./schemas";
 
 const UNAUTHORIZED = 401;
+
+export type SitesCaller = {
+  token: string;
+  clientIp: string | null;
+};
 
 export class SitesApiError extends Error {
   constructor(readonly status: number) {
@@ -10,12 +15,17 @@ export class SitesApiError extends Error {
   }
 }
 
-async function request(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+async function request(
+  caller: SitesCaller,
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
   const response = await fetch(apiUrl(path), {
     ...init,
     headers: {
       ...init.headers,
-      Authorization: `Bearer ${token}`,
+      ...proxyHeaders(caller.clientIp),
+      Authorization: `Bearer ${caller.token}`,
       "Content-Type": "application/json",
     },
     cache: "no-store",
@@ -24,31 +34,35 @@ async function request(token: string, path: string, init: RequestInit = {}): Pro
   return response;
 }
 
-export async function listSites(token: string): Promise<Site[]> {
+export async function listSites(caller: SitesCaller): Promise<Site[]> {
   try {
-    return sitesSchema.parse(await (await request(token, "/sites")).json());
+    return sitesSchema.parse(await (await request(caller, "/sites")).json());
   } catch (error) {
     if (error instanceof SitesApiError && error.status === UNAUTHORIZED) return [];
     throw error;
   }
 }
 
-export async function trackSite(token: string, url: string, auditId?: string): Promise<Site> {
-  const response = await request(token, "/sites", {
+export async function trackSite(caller: SitesCaller, url: string, auditId?: string): Promise<Site> {
+  const response = await request(caller, "/sites", {
     method: "POST",
     body: JSON.stringify({ url, audit_id: auditId ?? null }),
   });
   return siteSchema.parse(await response.json());
 }
 
-export async function recheckSite(token: string, siteId: string, language: Locale): Promise<Audit> {
-  const response = await request(token, `/sites/${encodeURIComponent(siteId)}/audits`, {
+export async function recheckSite(
+  caller: SitesCaller,
+  siteId: string,
+  language: Locale,
+): Promise<Audit> {
+  const response = await request(caller, `/sites/${encodeURIComponent(siteId)}/audits`, {
     method: "POST",
     body: JSON.stringify({ language }),
   });
   return auditSchema.parse(await response.json());
 }
 
-export async function untrackSite(token: string, siteId: string): Promise<void> {
-  await request(token, `/sites/${encodeURIComponent(siteId)}`, { method: "DELETE" });
+export async function untrackSite(caller: SitesCaller, siteId: string): Promise<void> {
+  await request(caller, `/sites/${encodeURIComponent(siteId)}`, { method: "DELETE" });
 }

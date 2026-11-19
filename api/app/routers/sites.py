@@ -1,10 +1,11 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.dependencies import DbSession, JobQueue
 from app.core.owner import CurrentOwner
+from app.core.rate_limits import limit_audit_creation, limit_site_tracking
 from app.schemas.audit import AuditResponse
 from app.schemas.errors import ErrorCode, ErrorResponse
 from app.schemas.site import SiteCreate, SiteRecheck, SiteResponse
@@ -29,6 +30,11 @@ NOT_FOUND_RESPONSE: dict[int | str, dict[str, Any]] = {
 }
 
 
+RATE_LIMITED_RESPONSE: dict[int | str, dict[str, Any]] = {
+    status.HTTP_429_TOO_MANY_REQUESTS: {"model": ErrorResponse}
+}
+
+
 def site_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ErrorCode.SITE_NOT_FOUND)
 
@@ -38,7 +44,12 @@ async def read_sites(owner: CurrentOwner, session: DbSession) -> list[SiteRespon
     return await list_sites(session, owner)
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_site_tracking)],
+    responses=RATE_LIMITED_RESPONSE,
+)
 async def create_site(payload: SiteCreate, owner: CurrentOwner, session: DbSession) -> SiteResponse:
     site = await track_site(session, owner, str(payload.url), payload.audit_id)
     return await get_site(session, owner, site.id)
@@ -55,8 +66,10 @@ async def read_site(site_id: uuid.UUID, owner: CurrentOwner, session: DbSession)
 @router.post(
     "/{site_id}/audits",
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_audit_creation)],
     responses={
         **NOT_FOUND_RESPONSE,
+        **RATE_LIMITED_RESPONSE,
         status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse},
     },
 )

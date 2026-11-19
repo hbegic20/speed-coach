@@ -3,9 +3,10 @@
 import { redirect } from "next/navigation";
 import { createAudit } from "@/lib/api/audits";
 import { defaultLocale, isLocale } from "@/lib/i18n/locales";
+import { requestClientIp } from "@/lib/request/client-ip";
 import { websiteUrlSchema } from "@/lib/validation/website-url";
 
-export type AuditFormError = "invalid_url" | "unavailable";
+export type AuditFormError = "invalid_url" | "rate_limited" | "unavailable";
 
 export type AuditFormState = {
   error: AuditFormError | null;
@@ -24,7 +25,7 @@ export async function submitAudit(
   const parsed = websiteUrlSchema.safeParse(url);
   if (!parsed.success) return { error: "invalid_url", url };
 
-  const result = await createAudit(parsed.data, language);
+  const result = await createAudit(parsed.data, language, await requestClientIp());
   if (!result.ok) return { error: result.error, url };
 
   redirect(`/${language}/audits/${result.audit.id}`);
