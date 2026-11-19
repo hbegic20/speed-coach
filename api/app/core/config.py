@@ -1,7 +1,10 @@
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, RedisDsn, SecretStr
+from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ASYNC_POSTGRES_SCHEME = "postgresql+asyncpg://"
+PLAIN_POSTGRES_SCHEMES = ("postgres://", "postgresql://")
 
 
 class Settings(BaseSettings):
@@ -22,6 +25,16 @@ class Settings(BaseSettings):
     audit_daily_limit: int = Field(default=30, gt=0)
     audit_global_daily_limit: int = Field(default=500, gt=0)
     site_hourly_limit: int = Field(default=30, gt=0)
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def use_async_driver(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        for scheme in PLAIN_POSTGRES_SCHEMES:
+            if value.startswith(scheme):
+                return ASYNC_POSTGRES_SCHEME + value.removeprefix(scheme)
+        return value
 
 
 @lru_cache
